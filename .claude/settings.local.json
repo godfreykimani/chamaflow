@@ -5,7 +5,8 @@
       "Bash(git push *)",
       "Bash(railway whoami *)",
       "Bash(vercel whoami *)",
-      "Bash(./deploy.sh)"
+      "Bash(./deploy.sh)",
+      "Bash(railway login *)"
     ]
   }
 }
