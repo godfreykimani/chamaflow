@@ -93,7 +93,7 @@ db.exec(`
 // ─── Hash the default PIN ─────────────────────────────────────────────────────
 
 const DEFAULT_PIN  = "1234";
-const pinHash      = await (async () => bcrypt.hash(DEFAULT_PIN, 10))();
+const pinHash      = bcrypt.hashSync(DEFAULT_PIN, 10);
 
 // ─── Members ─────────────────────────────────────────────────────────────────
 
