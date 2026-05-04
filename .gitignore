@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Database
+backend/chamaflow.db
+backend/chamaflow.db-wal
+backend/chamaflow.db-shm
+backend/chamaflow.db.bak
+backend/uploads/
+
+# Env files
+**/.env
+**/.env.local
+# (keep .env.example tracked)
+
+# Build output
+frontend/dist/
+
+# Editor
+.DS_Store
+*.log

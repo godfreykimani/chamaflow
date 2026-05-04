@@ -1,0 +1,16 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "node server.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[[deploy.envVars]]
+# Set these in the Railway dashboard → Variables tab:
+# JWT_SECRET      = (generate: openssl rand -hex 64)
+# NODE_ENV        = production
+# FRONTEND_URL    = https://chamaflow.vercel.app
+# PORT            = 3001  (Railway sets this automatically)

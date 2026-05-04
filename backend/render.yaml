@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: chamaflow-api
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    disk:
+      name: chamaflow-db
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/chamaflow.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 3001
+      - key: FRONTEND_URL
+        sync: false   # set manually in Render dashboard
