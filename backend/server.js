@@ -31,7 +31,10 @@ if (!fs.existsSync(UPLOADS)) fs.mkdirSync(UPLOADS, { recursive: true });
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 const app = express();
-app.use(cors({ origin: process.env.FRONTEND_URL || "*", methods: ["GET","POST","PUT","DELETE","PATCH"], allowedHeaders: ["Content-Type","Authorization"] }));
+const ALLOWED_ORIGINS = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL, "https://chamaflow-six.vercel.app"]
+  : ["*"];
+app.use(cors({ origin: (origin, cb) => (!origin || ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin)) ? cb(null, true) : cb(new Error("Not allowed by CORS")), methods: ["GET","POST","PUT","DELETE","PATCH"], allowedHeaders: ["Content-Type","Authorization"] }));
 app.use(express.json());
 app.use("/uploads", express.static(UPLOADS));
 
