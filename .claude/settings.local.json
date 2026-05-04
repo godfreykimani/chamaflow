@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "Bash(git push *)",
+      "Bash(railway whoami *)",
+      "Bash(vercel whoami *)",
+      "Bash(./deploy.sh)"
+    ]
+  }
+}
