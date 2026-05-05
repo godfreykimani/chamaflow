@@ -1224,8 +1224,8 @@ function EditMemberModal({ member, onClose, onSave }) {
   const inputStyle = { width: "100%", padding: "13px 14px", borderRadius: 12, border: "1.5px solid #ECEAE4", background: "#F9F8F5", fontSize: 14, fontFamily: "inherit", outline: "none", color: "#1A1A1A", transition: "border-color 0.15s" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
-      <div className="slide-up" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "24px 24px 0 0", width: "100%", maxWidth: 500, padding: "24px 24px 36px" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div className="fade-up" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", padding: "24px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
