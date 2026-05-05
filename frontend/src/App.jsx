@@ -144,6 +144,7 @@ function ChamaFlow({ onLogout }) {
   const [toast,            setToast]            = useState(null);
   const [selectedMeeting,  setSelectedMeeting]  = useState(null);
   const [addMemberModal,   setAddMemberModal]   = useState(false);
+  const [editMember,       setEditMember]       = useState(null);
   const [recordForm,       setRecordForm]       = useState({ member_id: "", type: "Contribution", month: CURRENT_MONTH, amount: "5000", method: "M-Pesa", ref: "", confirmed: false });
   const [apiOnline,        setApiOnline]        = useState(null);
 
@@ -279,6 +280,18 @@ function ChamaFlow({ onLogout }) {
       showToast(`${newMember.name} added successfully`);
     } catch (e) {
       showToast(e.message || "Failed to add member", "error");
+    }
+  };
+
+  // ── Edit member ──
+  const handleEditMember = async (id, formData) => {
+    try {
+      const updated = await api.updateMember(id, formData);
+      setMembers(prev => prev.map(m => m.id === id ? updated : m));
+      setEditMember(null);
+      showToast(`${updated.name} updated successfully`);
+    } catch (e) {
+      showToast(e.message || "Failed to update member", "error");
     }
   };
 
@@ -437,7 +450,7 @@ function ChamaFlow({ onLogout }) {
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} selectStyle={selectStyle} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} setSelectedMeeting={setSelectedMeeting} recording={recording} transcribing={transcribing} transcript={transcript} waveform={waveform} onStart={() => { setRecording(true); setTranscript(""); setWaveform([]); }} onStop={() => { setRecording(false); setTranscribing(true); simulateTranscript(setTranscript, () => setTranscribing(false)); }} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} selectStyle={selectStyle} />}
-              {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} />}
+              {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} />}
               {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} />}
             </div>
 
@@ -464,6 +477,7 @@ function ChamaFlow({ onLogout }) {
       {/* Modals & Overlays */}
       {selectedMeeting && <PDFModal meeting={selectedMeeting} members={members} onClose={() => setSelectedMeeting(null)} />}
       {addMemberModal  && <AddMemberModal onClose={() => setAddMemberModal(false)} onAdd={handleAddMember} members={members} />}
+      {editMember      && <EditMemberModal member={editMember} onClose={() => setEditMember(null)} onSave={handleEditMember} />}
 
       {/* Toast */}
       {toast && (
@@ -961,7 +975,7 @@ function Label({ text, children }) {
 
 // ── Members Page ──────────────────────────────────────────────────────────────
 
-function MembersPage({ members, loading, onAdd, onToggle }) {
+function MembersPage({ members, loading, onAdd, onToggle, onEdit }) {
   const active = members.filter(m => m.active).length;
   return (
     <div style={{ padding: 20 }} className="fade-up">
@@ -983,22 +997,29 @@ function MembersPage({ members, loading, onAdd, onToggle }) {
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3,4].map(k => <Skeleton key={k} h={66} r={14} />)}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3,4].map(k => <Skeleton key={k} h={80} r={14} />)}</div>
       ) : members.map((m, i) => (
-        <div key={m.id} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, boxShadow: "0 1px 6px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", gap: 12, animation: `fadeUp 0.25s ease ${Math.min(i,10)*0.04}s both`, opacity: m.active ? 1 : 0.5 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: m.role === "Chairman" ? "linear-gradient(135deg,#FFD54F,#FF8F00)" : m.role === "Secretary" ? "linear-gradient(135deg,#81C784,#2E7D32)" : "linear-gradient(135deg,#90CAF9,#1565C0)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-            {m.name?.charAt(0)}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>{m.name}</div>
-              {!m.active && <Tag label="Inactive" color="#F5F4F0" text="#999" />}
+        <div key={m.id} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, boxShadow: "0 1px 6px rgba(0,0,0,0.05)", animation: `fadeUp 0.25s ease ${Math.min(i,10)*0.04}s both`, opacity: m.active ? 1 : 0.6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: m.role === "Chairman" ? "linear-gradient(135deg,#FFD54F,#FF8F00)" : m.role === "Secretary" ? "linear-gradient(135deg,#81C784,#2E7D32)" : "linear-gradient(135deg,#90CAF9,#1565C0)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+              {m.name?.charAt(0)}
             </div>
-            <div style={{ fontSize: 10, color: "#999", marginTop: 2 }}>{m.role} · {m.shares} share{m.shares > 1 ? "s" : ""} · {m.phone}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>{m.name}</div>
+                {!m.active && <Tag label="Inactive" color="#F5F4F0" text="#999" />}
+              </div>
+              <div style={{ fontSize: 10, color: "#999", marginTop: 2 }}>{m.role} · {m.shares} share{m.shares > 1 ? "s" : ""} · {m.phone}</div>
+            </div>
           </div>
-          <button className="btn" onClick={() => onToggle(m.id, !!m.active)} style={{ background: m.active ? "#FFF3E0" : "#E8F5E9", color: m.active ? "#E65100" : "#2E7D32", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
-            {m.active ? "Deactivate" : "Activate"}
-          </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button className="btn" onClick={() => onEdit(m)} style={{ flex: 1, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 8, padding: "8px 0", fontSize: 11, fontWeight: 600 }}>
+              ✎ Edit Details
+            </button>
+            <button className="btn" onClick={() => onToggle(m.id, !!m.active)} style={{ flex: 1, background: m.active ? "#FFF3E0" : "#E8F5E9", color: m.active ? "#E65100" : "#2E7D32", border: "none", borderRadius: 8, padding: "8px 0", fontSize: 11, fontWeight: 600 }}>
+              {m.active ? "Deactivate" : "Activate"}
+            </button>
+          </div>
         </div>
       ))}
     </div>
@@ -1160,6 +1181,103 @@ function AddMemberModal({ onClose, onAdd }) {
         </div>
         <button className="btn" onClick={handleSubmit} disabled={saving || !form.name} style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", opacity: !form.name ? 0.5 : 1 }}>
           {saving ? <><Spinner /> Adding…</> : "Add Member"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Member Modal ─────────────────────────────────────────────────────────
+
+function EditMemberModal({ member, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name:   member.name   || "",
+    phone:  member.phone  || "",
+    shares: String(member.shares || 1),
+    role:   member.role   || "Member",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState(null);
+  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const roleColor = { Chairman: "#F57F17", Secretary: "#2E7D32", Member: "#1565C0" };
+  const roleBg    = { Chairman: "#FFF8E1", Secretary: "#E8F5E9", Member: "#E3F2FD" };
+
+  const changed =
+    form.name !== member.name ||
+    form.phone !== member.phone ||
+    form.shares !== String(member.shares) ||
+    form.role !== member.role;
+
+  const handleSubmit = async () => {
+    if (!form.name.trim() || !form.phone.trim()) return setError("Name and phone are required.");
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(member.id, { name: form.name.trim(), phone: form.phone.trim(), shares: parseInt(form.shares) || 1, role: form.role });
+    } catch (e) {
+      setError(e.message || "Failed to save.");
+      setSaving(false);
+    }
+  };
+
+  const inputStyle = { width: "100%", padding: "13px 14px", borderRadius: 12, border: "1.5px solid #ECEAE4", background: "#F9F8F5", fontSize: 14, fontFamily: "inherit", outline: "none", color: "#1A1A1A", transition: "border-color 0.15s" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "24px 24px 0 0", width: "100%", maxWidth: 500, padding: "24px 24px 36px" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Edit Member</div>
+            <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>Changes are saved to the database</div>
+          </div>
+          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        {/* Avatar preview */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#F7F6F2", borderRadius: 14, padding: "12px 16px", marginBottom: 20 }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: form.role === "Chairman" ? "linear-gradient(135deg,#FFD54F,#FF8F00)" : form.role === "Secretary" ? "linear-gradient(135deg,#81C784,#2E7D32)" : "linear-gradient(135deg,#90CAF9,#1565C0)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
+            {form.name?.charAt(0)?.toUpperCase() || "?"}
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#1A1A1A" }}>{form.name || "—"}</div>
+            <div style={{ display: "inline-block", marginTop: 4, padding: "2px 10px", borderRadius: 20, background: roleBg[form.role], color: roleColor[form.role], fontSize: 10, fontWeight: 700 }}>{form.role}</div>
+          </div>
+        </div>
+
+        {/* Fields */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>FULL NAME</div>
+          <input value={form.name} onChange={e => setF("name", e.target.value)} placeholder="Full name" style={inputStyle} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>PHONE NUMBER</div>
+          <input type="tel" value={form.phone} onChange={e => setF("phone", e.target.value)} placeholder="07XX XXX XXX" style={inputStyle} />
+          <div style={{ fontSize: 10, color: "#BBB", marginTop: 4 }}>This is the number used to log in</div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>SHARES</div>
+            <input type="number" min={1} max={10} value={form.shares} onChange={e => setF("shares", e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>ROLE</div>
+            <select value={form.role} onChange={e => setF("role", e.target.value)} style={{ ...inputStyle, cursor: "pointer", appearance: "none", WebkitAppearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}>
+              <option value="Member">Member</option>
+              <option value="Secretary">Secretary</option>
+              <option value="Chairman">Chairman</option>
+            </select>
+          </div>
+        </div>
+
+        {error && <div style={{ background: "#FBE9E7", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#BF360C", fontWeight: 500 }}>{error}</div>}
+
+        <button className="btn" onClick={handleSubmit} disabled={saving || !changed} style={{ width: "100%", background: changed && !saving ? "#1A1A1A" : "#ECEAE4", color: changed && !saving ? "#F7F6F2" : "#BBB", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.2s" }}>
+          {saving ? <><Spinner /> Saving…</> : changed ? "Save Changes" : "No Changes"}
         </button>
       </div>
     </div>
