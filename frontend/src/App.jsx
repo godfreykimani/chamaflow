@@ -109,7 +109,7 @@ export default function Root() {
 function LoadingScreen() {
   return (
     <div style={{ minHeight:"100vh", background:"#1C1C1E", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif" }}>
-      <div style={{ fontSize:28, fontWeight:700, color:"#F7F6F2", letterSpacing:"-1px", fontFamily:"'DM Serif Display',serif", marginBottom:24 }}>ChamaFlow</div>
+      <div style={{ fontSize:28, fontWeight:700, color:"#F7F6F2", letterSpacing:"-1px", fontFamily:"'DM Serif Display',serif", marginBottom:24 }}>Kabazim Reloded</div>
       <div style={{ width:24, height:24, border:"2px solid #333", borderTopColor:"#C8A97E", borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
@@ -339,7 +339,7 @@ function ChamaFlow({ onLogout }) {
       {/* ── Top bar ── */}
       <div style={{ background: "#1A1A1A", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "#444", fontSize: 11, letterSpacing: 1 }}>CHAMAFLOW</span>
+          <span style={{ color: "#444", fontSize: 11, letterSpacing: 1 }}>KABAZIM RELODED</span>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: apiOnline === null ? "#666" : apiOnline ? "#4CAF50" : "#EF5350" }} />
             <span style={{ fontSize: 10, color: apiOnline ? "#4CAF50" : "#EF5350" }}>
@@ -377,7 +377,7 @@ function ChamaFlow({ onLogout }) {
           {viewMode === "tablet" && (
             <div style={{ width: 224, background: "#1C1C1E", display: "flex", flexDirection: "column", padding: "32px 0", flexShrink: 0 }}>
               <div style={{ padding: "0 24px 28px" }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>ChamaFlow</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>Kabazim Reloded</div>
                 <div style={{ fontSize: 10, color: "#555", marginTop: 2, letterSpacing: 1 }}>SAVINGS PLATFORM</div>
               </div>
               <div style={{ padding: "0 12px", flex: 1 }}>
@@ -413,7 +413,7 @@ function ChamaFlow({ onLogout }) {
             {viewMode === "mobile" && (
               <div style={{ background: "#F7F6F2", padding: "14px 20px 10px", borderBottom: "1px solid #ECEAE4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: "#1A1A1A" }}>ChamaFlow</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: "#1A1A1A" }}>Kabazim Reloded</div>
                   <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5 }}>{role.toUpperCase()}</div>
                 </div>
                 {currentUser && (
@@ -974,7 +974,7 @@ function MembersPage({ members, loading, onAdd, onToggle }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
-        {[["Chairman",1,"#FFF8E1","#F57F17"],["Secretary",1,"#E8F5E9","#2E7D32"],["Members",active-2,"#E3F2FD","#1565C0"]].map(([r,c,bg,tc]) => (
+        {[["Chairman",members.filter(m=>m.role==="Chairman"&&m.active).length,"#FFF8E1","#F57F17"],["Secretary",members.filter(m=>m.role==="Secretary"&&m.active).length,"#E8F5E9","#2E7D32"],["Members",members.filter(m=>m.role==="Member"&&m.active).length,"#E3F2FD","#1565C0"]].map(([r,c,bg,tc]) => (
           <div key={r} style={{ background: bg, borderRadius: 14, padding: "12px 10px", textAlign: "center" }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: tc }}>{c}</div>
             <div style={{ fontSize: 9, color: tc, opacity: 0.8, marginTop: 2 }}>{r}</div>
@@ -1016,7 +1016,7 @@ function SettingsPage({ role, currentUser }) {
       </div>
       <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Chama Details</div>
-        {[["Name","Nairobi Professionals Chama"],["Founded","January 2020"],["Meeting Day","2nd Saturday, monthly"],["Members","26"],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
+        {[["Name","Kabazim Reloded"],["Meeting Day","Monthly"],["Members","18"],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #F5F4F0" }}>
             <div style={{ fontSize: 12, color: "#999" }}>{k}</div>
             <div style={{ fontSize: 12, fontWeight: 500, color: "#1A1A1A" }}>{v}</div>
@@ -1035,7 +1035,7 @@ function SettingsPage({ role, currentUser }) {
       </div>
       <div style={{ background: "#F0EEE8", borderRadius: 14, padding: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "#A07850", marginBottom: 4 }}>API Connected</div>
-        <div style={{ fontSize: 12, color: "#999" }}>Backend running at <code style={{ background: "#E8E5DE", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>localhost:3001</code></div>
+        <div style={{ fontSize: 12, color: "#999" }}>Backend running on Railway</div>
       </div>
     </div>
   );
@@ -1057,8 +1057,8 @@ function PDFModal({ meeting, members, onClose }) {
         <div style={{ padding: "28px 28px 40px", fontFamily: "Georgia, serif" }}>
           <div style={{ textAlign: "center", marginBottom: 28, paddingBottom: 20, borderBottom: "2px solid #1A1A1A" }}>
             <div style={{ fontSize: 10, letterSpacing: 3, color: "#666", marginBottom: 6 }}>OFFICIAL MEETING MINUTES</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1A1A" }}>Nairobi Professionals Chama</div>
-            <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>Registered Chama · Nairobi, Kenya</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1A1A" }}>Kabazim Reloded</div>
+            <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>Registered Chama · Kenya</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
             {[["DATE", meeting.date],["LOCATION", meeting.location],["PRESENT", meeting.attendance_count ?? "—"],["STATUS", meeting.status]].map(([k,v]) => (
@@ -1093,7 +1093,7 @@ function PDFModal({ meeting, members, onClose }) {
           </PDFSection>
           <PDFSection title="3. SIGNATORIES">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 8 }}>
-              {["Chairman — Amara Ochieng","Secretary — Beatrice Wanjiku"].map(s => (
+              {["Chairman — Godfrey Kimani","Secretary — Lydia Kibe"].map(s => (
                 <div key={s} style={{ textAlign: "center" }}>
                   <div style={{ height: 36, borderBottom: "1px solid #1A1A1A", marginBottom: 6 }} />
                   <div style={{ fontSize: 10, color: "#666" }}>{s}</div>

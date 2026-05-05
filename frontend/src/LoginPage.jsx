@@ -42,7 +42,7 @@ export default function LoginPage({ onLogin, loading, error }) {
       <div style={{ background:"#1C1C1E", padding:"48px 32px 40px", textAlign:"center" }}>
         <div style={{ fontSize:13, color:"#555", letterSpacing:3, marginBottom:12 }}>WELCOME TO</div>
         <div style={{ fontSize:36, fontWeight:700, color:"#F7F6F2", letterSpacing:"-1.5px", fontFamily:"'DM Serif Display', serif", lineHeight:1 }}>
-          ChamaFlow
+          Kabazim Reloded
         </div>
         <div style={{ fontSize:12, color:"#555", marginTop:8, letterSpacing:1 }}>SAVINGS · MEETINGS · ACCOUNTABILITY</div>
 
@@ -153,7 +153,7 @@ export default function LoginPage({ onLogin, loading, error }) {
       </div>
 
       <div style={{ textAlign:"center", padding:"0 0 24px", fontSize:11, color:"#CCC" }}>
-        ChamaFlow v1.0 · Nairobi Professionals Chama
+        Kabazim Reloded v1.0
       </div>
 
       <style>{`@keyframes spin { to{transform:rotate(360deg)} }`}</style>

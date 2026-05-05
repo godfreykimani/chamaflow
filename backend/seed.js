@@ -98,33 +98,26 @@ const pinHash      = bcrypt.hashSync(DEFAULT_PIN, 10);
 // ─── Members ─────────────────────────────────────────────────────────────────
 
 // [name, shares, role, active, phone, email]
+// Sorted alphabetically. Phone numbers are placeholders — update via the app.
 const MEMBERS = [
-  ["Amara Ochieng",   1, "Chairman",  1, "0712345678", "amara@chamaflow.co.ke"],
-  ["Beatrice Wanjiku",1, "Secretary", 1, "0723456789", "beatrice@chamaflow.co.ke"],
-  ["Charles Kamau",   2, "Member",    1, "0734567890", "charles@email.com"],
-  ["Diana Njeri",     1, "Member",    1, "0745678901", "diana@email.com"],
-  ["Edwin Mwangi",    1, "Member",    1, "0756789012", "edwin@email.com"],
-  ["Faith Akinyi",    1, "Member",    1, "0767890123", "faith@email.com"],
-  ["George Otieno",   2, "Member",    1, "0778901234", "george@email.com"],
-  ["Hannah Muthoni",  1, "Member",    1, "0789012345", "hannah@email.com"],
-  ["Isaac Kimani",    1, "Member",    1, "0790123456", "isaac@email.com"],
-  ["Jane Wairimu",    1, "Member",    1, "0701234567", "jane@email.com"],
-  ["Kevin Omondi",    1, "Member",    1, "0712345679", "kevin@email.com"],
-  ["Linda Chebet",    1, "Member",    1, "0723456780", "linda@email.com"],
-  ["Michael Gitau",   2, "Member",    1, "0734567891", "michael@email.com"],
-  ["Nancy Wangari",   1, "Member",    1, "0745678902", "nancy@email.com"],
-  ["Oscar Mutua",     1, "Member",    1, "0756789013", "oscar@email.com"],
-  ["Pamela Adhiambo", 1, "Member",    1, "0767890124", "pamela@email.com"],
-  ["Quincy Njoroge",  1, "Member",    1, "0778901235", "quincy@email.com"],
-  ["Rose Auma",       1, "Member",    1, "0789012346", "rose@email.com"],
-  ["Samuel Koech",    2, "Member",    1, "0790123457", "samuel@email.com"],
-  ["Tabitha Waweru",  1, "Member",    1, "0701234568", "tabitha@email.com"],
-  ["Uchenna Obi",     1, "Member",    1, "0712345670", "uchenna@email.com"],
-  ["Veronica Karimi", 1, "Member",    1, "0723456781", "veronica@email.com"],
-  ["Walter Odhiambo", 1, "Member",    1, "0734567892", "walter@email.com"],
-  ["Xenia Ndirangu",  1, "Member",    0, "0745678903", "xenia@email.com"],  // inactive
-  ["Yusuf Hassan",    1, "Member",    1, "0756789014", "yusuf@email.com"],
-  ["Zipporah Maina",  1, "Member",    1, "0767890125", "zipporah@email.com"],
+  ["Cate Theuri",      1, "Member",    1, "0700000001", "cate.theuri@kabazim.co.ke"],
+  ["David Munene",     1, "Member",    1, "0700000002", "david.munene@kabazim.co.ke"],
+  ["Eliud Maina",      1, "Member",    1, "0700000003", "eliud.maina@kabazim.co.ke"],
+  ["Evelyn Kagwiria",  1, "Member",    1, "0700000004", "evelyn.kagwiria@kabazim.co.ke"],
+  ["Felista Wandugi",  1, "Member",    1, "0700000005", "felista.wandugi@kabazim.co.ke"],
+  ["Gladys Muigai",    1, "Member",    1, "0700000006", "gladys.muigai@kabazim.co.ke"],
+  ["Godfrey Kimani",   1, "Chairman",  1, "0700000007", "godfrey.kimani@kabazim.co.ke"],
+  ["Hannah Njoki",     1, "Member",    1, "0700000008", "hannah.njoki@kabazim.co.ke"],
+  ["Jessie Nyaga",     1, "Member",    1, "0700000009", "jessie.nyaga@kabazim.co.ke"],
+  ["John Mwaura",      1, "Member",    1, "0700000010", "john.mwaura@kabazim.co.ke"],
+  ["Kellen Wanderi",   1, "Member",    1, "0700000011", "kellen.wanderi@kabazim.co.ke"],
+  ["Leah Wangui",      1, "Member",    1, "0700000012", "leah.wangui@kabazim.co.ke"],
+  ["Lydia Kibe",       1, "Secretary", 1, "0700000013", "lydia.kibe@kabazim.co.ke"],
+  ["Lydia Wangechi",   1, "Member",    1, "0700000014", "lydia.wangechi@kabazim.co.ke"],
+  ["Peris Njeri",      1, "Member",    1, "0700000015", "peris.njeri@kabazim.co.ke"],
+  ["Peter Ndichu",     1, "Member",    1, "0700000016", "peter.ndichu@kabazim.co.ke"],
+  ["Rachel Mwaura",    1, "Member",    1, "0700000017", "rachel.mwaura@kabazim.co.ke"],
+  ["Wilson Wainaina",  1, "Member",    1, "0700000018", "wilson.wainaina@kabazim.co.ke"],
 ];
 
 const insertMember = db.prepare(
@@ -137,7 +130,7 @@ const seedMembers = db.transaction(() => {
   }
 });
 seedMembers();
-console.log(`✅  ${MEMBERS.length} members inserted  (default PIN: ${DEFAULT_PIN})`);
+console.log(`✅  ${MEMBERS.length} members inserted (default PIN: ${DEFAULT_PIN})`);;
 
 // ─── Contributions ────────────────────────────────────────────────────────────
 
