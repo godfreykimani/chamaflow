@@ -451,7 +451,7 @@ function ChamaFlow({ onLogout }) {
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} setSelectedMeeting={setSelectedMeeting} recording={recording} transcribing={transcribing} transcript={transcript} waveform={waveform} onStart={() => { setRecording(true); setTranscript(""); setWaveform([]); }} onStop={() => { setRecording(false); setTranscribing(true); simulateTranscript(setTranscript, () => setTranscribing(false)); }} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} />}
-              {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} />}
+              {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} />}
             </div>
 
             {/* Mobile bottom nav */}
@@ -618,7 +618,7 @@ function QuickCard({ title, sub, icon, color, iconColor, onClick }) {
 // ── Contributions Page ────────────────────────────────────────────────────────
 
 function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, selectStyle }) {
-  const totalContribs = contributions.filter(c => c.type === "Contribution").reduce((s,c) => s+c.amount, 0);
+  const totalShares   = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
   const totalFines    = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
   const totalLateness = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
   const grandTotal    = contributions.reduce((s,c) => s+c.amount, 0);
@@ -638,10 +638,10 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
         <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 10 }}>{filterYear} TOTAL</div>
         <div style={{ fontSize: 30, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-1px", marginBottom: 14 }}>{fmt(grandTotal)}</div>
         <div style={{ display: "flex", gap: 0 }}>
-          {[["CONTRIBS", totalContribs, "#90CAF9"],["FINES", totalFines, "#FFAB91"],["LATENESS", totalLateness, "#FFE082"]].map(([k,v,c],i) => (
+          {[["SHARES", `${totalShares} shares`, "#90CAF9"],["FINES", totalFines > 0 ? fmt(totalFines) : "—", "#FFAB91"],["LATENESS", totalLateness > 0 ? fmt(totalLateness) : "—", "#FFE082"]].map(([k,v,c],i) => (
             <div key={k} style={{ flex: 1, paddingLeft: i > 0 ? 12 : 0, paddingRight: i < 2 ? 12 : 0, borderRight: i < 2 ? "1px solid #333" : "none" }}>
               <div style={{ fontSize: 9, color: "#555", letterSpacing: 0.5 }}>{k}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 3 }}>{v > 0 ? fmt(v) : "—"}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 3 }}>{v}</div>
             </div>
           ))}
         </div>
@@ -1028,7 +1028,7 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit }) {
 
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
-function SettingsPage({ role, currentUser }) {
+function SettingsPage({ role, currentUser, onLogout }) {
   return (
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ marginBottom: 22 }}>
@@ -1044,16 +1044,22 @@ function SettingsPage({ role, currentUser }) {
           </div>
         ))}
       </div>
+
+      {/* Profile card */}
       <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Logged in as</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16 }}>{currentUser?.name?.charAt(0) ?? "?"}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Profile</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+          <div style={{ width: 50, height: 50, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 18 }}>{currentUser?.name?.charAt(0) ?? "?"}</div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#1A1A1A" }}>{currentUser?.name ?? "Loading…"}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A1A" }}>{currentUser?.name ?? "Loading…"}</div>
             <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{role} · {currentUser?.phone}</div>
           </div>
         </div>
+        <button className="btn" onClick={onLogout} style={{ width: "100%", background: "#1C1C1E", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "13px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          Sign Out
+        </button>
       </div>
+
       <div style={{ background: "#F0EEE8", borderRadius: 14, padding: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "#A07850", marginBottom: 4 }}>API Connected</div>
         <div style={{ fontSize: 12, color: "#999" }}>Backend running on Railway</div>
@@ -1155,11 +1161,11 @@ function AddMemberModal({ onClose, onAdd }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
-      <div className="slide-up" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24 }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div className="fade-up" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", padding: "24px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>Add New Member</div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 20, color: "#999", cursor: "pointer" }}>✕</button>
+          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
         {[["Full Name","text","e.g. Alice Mwangi","name"],["Phone","tel","07XX XXX XXX","phone"],["Email","email","alice@email.com","email"]].map(([l,t,p,k]) => (
           <div key={k} style={{ marginBottom: 14 }}>
