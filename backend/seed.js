@@ -193,11 +193,11 @@ const allActive = MEMBERS.map((_,i)=>i+1).filter(i=>MEMBERS[i-1][3]===1); // act
 const seedAttendance = db.transaction(() => {
   // meeting 0 (Feb): all present
   for (const m of allActive) insertAtt.run(MEETING_IDS[0], m, "present");
-  // meeting 1 (Mar): 17,11 absent with apology
-  for (const m of allActive) insertAtt.run(MEETING_IDS[1], m, [17,11].includes(m)?"apology":"present");
-  // meeting 2 (Apr): 19 absent without apology
-  for (const m of allActive) insertAtt.run(MEETING_IDS[2], m, m===19?"absent":"present");
-  // meeting 3 (May): 6 apology, 14 absent
+  // meeting 1 (Mar): members 3,11 absent with apology
+  for (const m of allActive) insertAtt.run(MEETING_IDS[1], m, [3,11].includes(m)?"apology":"present");
+  // meeting 2 (Apr): member 5 absent without apology
+  for (const m of allActive) insertAtt.run(MEETING_IDS[2], m, m===5?"absent":"present");
+  // meeting 3 (May): member 6 apology, member 14 absent
   for (const m of allActive) insertAtt.run(MEETING_IDS[3], m, m===6?"apology":m===14?"absent":"present");
 });
 seedAttendance();
@@ -206,14 +206,14 @@ seedAttendance();
 
 const insertDec = db.prepare("INSERT INTO meeting_decisions (meeting_id,decision,proposed_by,seconded_by) VALUES (?,?,?,?)");
 const seedDecisions = db.transaction(() => {
-  insertDec.run(MEETING_IDS[0],"Approved annual budget of KES 1,560,000 for 2025",1,2);
-  insertDec.run(MEETING_IDS[0],"Elected Amara Ochieng as Chairman for 2025–2026",3,7);
-  insertDec.run(MEETING_IDS[1],"Approved T-Bill investment of KES 500,000",3,7);
-  insertDec.run(MEETING_IDS[1],"Welfare disbursement of KES 10,000 for Quincy Njoroge",2,4);
-  insertDec.run(MEETING_IDS[2],"Q1 surplus of KES 24,000 rolled into investment pool",7,13);
-  insertDec.run(MEETING_IDS[2],"Meeting venue policy: rotate quarterly between 3 hotels",2,1);
-  insertDec.run(MEETING_IDS[3],"Recruit 2 new members by July 2025",3,19);
-  insertDec.run(MEETING_IDS[3],"Monthly contribution reminder sent by 1st of each month",1,2);
+  insertDec.run(MEETING_IDS[0],"Approved annual budget for 2025",7,13);
+  insertDec.run(MEETING_IDS[0],"Elected Godfrey Kimani as Chairman for 2025–2026",2,10);
+  insertDec.run(MEETING_IDS[1],"Approved T-Bill investment of KES 500,000",10,7);
+  insertDec.run(MEETING_IDS[1],"Welfare fund disbursement approved",13,4);
+  insertDec.run(MEETING_IDS[2],"Q1 surplus rolled into investment pool",7,13);
+  insertDec.run(MEETING_IDS[2],"Meeting venue policy reviewed",13,7);
+  insertDec.run(MEETING_IDS[3],"Monthly contribution reminder sent by 1st of each month",7,13);
+  insertDec.run(MEETING_IDS[3],"Investment committee formed",13,10);
 });
 seedDecisions();
 console.log(`✅  Meeting attendance & decisions inserted`);
