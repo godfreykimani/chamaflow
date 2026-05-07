@@ -148,11 +148,6 @@ function ChamaFlow({ onLogout }) {
   const [recordForm,       setRecordForm]       = useState({ member_id: "", type: "Contribution", month: CURRENT_MONTH, amount: "5000", method: "M-Pesa", ref: "", confirmed: false });
   const [apiOnline,        setApiOnline]        = useState(null);
 
-  // ── Voice recording state ──
-  const [recording,   setRecording]   = useState(false);
-  const [transcribing,setTranscribing]= useState(false);
-  const [waveform,    setWaveform]    = useState([]);
-  const [transcript,  setTranscript]  = useState("");
 
   const isAdmin = role === "Chairman" || role === "Secretary";
 
@@ -218,13 +213,17 @@ function ChamaFlow({ onLogout }) {
   }, [page, filterYear, filterStatus, filterMember, filterType, currentUser]);
 
   // ── Fetch meetings when on meetings page ──
-  useEffect(() => {
-    if (page !== "meetings") return;
+  const loadMeetings = useCallback(() => {
     setLoad("meetings", true);
     api.getMeetings()
       .then(setMeetings)
       .catch(() => showToast("Failed to load meetings", "error"))
       .finally(() => setLoad("meetings", false));
+  }, [showToast]);
+
+  useEffect(() => {
+    if (page !== "meetings") return;
+    loadMeetings();
   }, [page]);
 
   // ── Refetch contributions for Record page summary ──
@@ -237,14 +236,6 @@ function ChamaFlow({ onLogout }) {
       .catch(() => {})
       .finally(() => setLoad("summary", false));
   }, [page]);
-
-  // ── Waveform animation ──
-  useEffect(() => {
-    if (!recording) return;
-    const iv = setInterval(() =>
-      setWaveform(p => [...p, Math.random() * 60 + 10].slice(-40)), 80);
-    return () => clearInterval(iv);
-  }, [recording]);
 
   // ── Record contribution ──
   const handleRecordContrib = async () => {
@@ -448,7 +439,7 @@ function ChamaFlow({ onLogout }) {
 
               {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} />}
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} selectStyle={selectStyle} />}
-              {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} setSelectedMeeting={setSelectedMeeting} recording={recording} transcribing={transcribing} transcript={transcript} waveform={waveform} onStart={() => { setRecording(true); setTranscript(""); setWaveform([]); }} onStop={() => { setRecording(false); setTranscribing(true); simulateTranscript(setTranscript, () => setTranscribing(false)); }} />}
+              {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} showToast={showToast} onRefresh={loadMeetings} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} />}
               {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} />}
@@ -489,25 +480,6 @@ function ChamaFlow({ onLogout }) {
   );
 }
 
-// ── Transcription simulation (replace with real Whisper/AI API) ───────────────
-
-function simulateTranscript(setTranscript, onDone) {
-  const lines = [
-    "Meeting called to order at 10:02 AM by the Chairman, Amara Ochieng.",
-    "Secretary confirmed quorum — 24 members present.",
-    "Treasurer presented contribution summary: KES 122,000 collected this month.",
-    "Motion to approve previous minutes — proposed by Charles Kamau, seconded by George Otieno.",
-    "Decision: Approved investment in T-Bills worth KES 500,000.",
-    "Welfare update: Member Quincy Njoroge underwent surgery — welfare of KES 10,000 approved.",
-    "Next meeting scheduled for June 14, 2025 at Panari Hotel.",
-    "Meeting adjourned at 12:15 PM.",
-  ];
-  let i = 0;
-  const t = setInterval(() => {
-    if (i < lines.length) setTranscript(p => p + (p ? "\n\n" : "") + lines[i++]);
-    else { clearInterval(t); onDone(); }
-  }, 600);
-}
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 
@@ -756,8 +728,65 @@ function Chip({ label, onRemove, dark, bg, color, border }) {
 
 // ── Meetings Page ─────────────────────────────────────────────────────────────
 
-function MeetingsPage({ meetings, loading, isAdmin, setSelectedMeeting, recording, transcribing, transcript, waveform, onStart, onStop }) {
-  const [showRec, setShowRec] = useState(false);
+function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeeting, showToast, onRefresh }) {
+  const [showRec,        setShowRec]        = useState(false);
+  const [recMeetingId,   setRecMeetingId]   = useState("");
+  const [recording,      setRecording]      = useState(false);
+  const [transcribing,   setTranscribing]   = useState(false);
+  const [waveform,       setWaveform]       = useState([]);
+  const [endorseTarget,  setEndorseTarget]  = useState(null); // meeting object
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef   = useRef([]);
+  const waveTimerRef     = useRef(null);
+
+  // Waveform animation while recording
+  useEffect(() => {
+    if (!recording) return;
+    waveTimerRef.current = setInterval(() =>
+      setWaveform(p => [...p, Math.random() * 60 + 10].slice(-40)), 80);
+    return () => clearInterval(waveTimerRef.current);
+  }, [recording]);
+
+  const handleStartRecording = async () => {
+    if (!recMeetingId) return showToast("Select a meeting first", "error");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      audioChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.start(100);
+      setRecording(true);
+      setWaveform([]);
+    } catch {
+      showToast("Microphone access denied — please allow microphone in browser settings", "error");
+    }
+  };
+
+  const handleStopRecording = () => {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    mr.onstop = async () => {
+      setTranscribing(true);
+      try {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        await api.transcribeMeeting(recMeetingId, audioBlob);
+        showToast("Transcript saved — meeting updated");
+        onRefresh();
+        setShowRec(false);
+        setRecMeetingId("");
+      } catch (e) {
+        showToast(e.message || "Transcription failed", "error");
+      } finally {
+        setTranscribing(false);
+      }
+    };
+    mr.stop();
+    mr.stream.getTracks().forEach(t => t.stop());
+    clearInterval(waveTimerRef.current);
+    setRecording(false);
+  };
 
   return (
     <div style={{ padding: 20 }} className="fade-up">
@@ -767,72 +796,258 @@ function MeetingsPage({ meetings, loading, isAdmin, setSelectedMeeting, recordin
           <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{meetings.length} meetings</div>
         </div>
         {isAdmin && (
-          <button className="btn" onClick={() => setShowRec(v => !v)} style={{ background: showRec ? "#1A1A1A" : "linear-gradient(135deg,#C8A97E,#A07850)", color: "#fff", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>
-            {showRec ? "✕ Close" : "⏺ Record AI"}
+          <button className="btn" onClick={() => { setShowRec(v => !v); setRecording(false); setTranscribing(false); }}
+            style={{ background: showRec ? "#1A1A1A" : "linear-gradient(135deg,#C8A97E,#A07850)", color: "#fff", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>
+            {showRec ? "✕ Close" : "🎙 Record AI"}
           </button>
         )}
       </div>
 
-      {/* AI Recorder */}
-      {showRec && (
+      {/* AI Recorder Panel — admin only */}
+      {showRec && isAdmin && (
         <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 20, marginBottom: 20 }} className="fade-up">
           <div style={{ fontSize: 13, fontWeight: 600, color: "#F7F6F2", marginBottom: 14 }}>🎙 AI Meeting Recorder</div>
-          <div style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 14, overflow: "hidden" }}>
-            {recording ? (
-              waveform.map((h,i) => <div key={i} style={{ width: 3, height: h, background: "#C8A97E", borderRadius: 2, transition: "height 0.05s" }} />)
-            ) : (
-              Array.from({length: 30}).map((_,i) => <div key={i} style={{ width: 3, height: 8, background: "#333", borderRadius: 2 }} />)
-            )}
+
+          {/* Meeting selector */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, color: "#666", letterSpacing: 0.5, marginBottom: 6 }}>SELECT MEETING TO RECORD</div>
+            <select value={recMeetingId} onChange={e => setRecMeetingId(e.target.value)} disabled={recording || transcribing}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #333", background: "#2A2A2A", color: "#F0EDE6", fontSize: 12, fontFamily: "inherit", outline: "none" }}>
+              <option value="">Choose meeting…</option>
+              {meetings.map(m => <option key={m.id} value={m.id}>{m.date} — {m.location}</option>)}
+            </select>
           </div>
-          {!recording && !transcribing && !transcript && (
-            <button className="btn" onClick={onStart} style={{ width: "100%", background: "#C8A97E", color: "#1A1A1A", border: "none", borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700 }}>⏺ Start Recording</button>
-          )}
-          {recording && (
-            <button className="btn" onClick={onStop} style={{ width: "100%", background: "#EF5350", color: "#fff", border: "none", borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏹ Stop Recording</button>
-          )}
-          {transcribing && <div style={{ fontSize: 12, color: "#888", animation: "pulse 1s infinite" }}>◌ Generating minutes…</div>}
-          {transcript && (
-            <div style={{ background: "#111", borderRadius: 12, padding: 14, maxHeight: 200, overflowY: "auto", marginTop: 12 }}>
-              <div style={{ fontSize: 10, color: "#C8A97E", marginBottom: 8, letterSpacing: 0.5 }}>TRANSCRIPT</div>
-              <div style={{ fontSize: 12, color: "#CCC", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{transcript}</div>
-              <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                <button style={{ flex: 1, background: "#C8A97E", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "10px", fontSize: 12, fontWeight: 700 }}>💾 Save Draft</button>
-                <button style={{ flex: 1, background: "#333", color: "#F0EDE6", border: "none", borderRadius: 10, padding: "10px", fontSize: 12 }}>📄 Export PDF</button>
-              </div>
+
+          {/* Waveform */}
+          <div style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 14, overflow: "hidden" }}>
+            {recording
+              ? waveform.map((h, i) => <div key={i} style={{ width: 3, height: h, background: "#C8A97E", borderRadius: 2, transition: "height 0.05s" }} />)
+              : Array.from({ length: 30 }).map((_, i) => <div key={i} style={{ width: 3, height: 8, background: "#333", borderRadius: 2 }} />)
+            }
+          </div>
+
+          {/* Controls */}
+          {transcribing ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", padding: 12 }}>
+              <div style={{ width: 16, height: 16, border: "2px solid #333", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+              <span style={{ fontSize: 13, color: "#888" }}>Transcribing audio with Groq Whisper…</span>
             </div>
+          ) : recording ? (
+            <button className="btn" onClick={handleStopRecording}
+              style={{ width: "100%", background: "#EF5350", color: "#fff", border: "none", borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, animation: "pulse 1.5s infinite" }}>
+              ⏹ Stop &amp; Transcribe
+            </button>
+          ) : (
+            <button className="btn" onClick={handleStartRecording} disabled={!recMeetingId}
+              style={{ width: "100%", background: recMeetingId ? "#C8A97E" : "#2A2A2A", color: recMeetingId ? "#1A1A1A" : "#555", border: "none", borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700 }}>
+              ⏺ Start Recording
+            </button>
           )}
+          <div style={{ fontSize: 10, color: "#555", textAlign: "center", marginTop: 10 }}>Audio is sent to Groq Whisper AI and transcript is saved to the meeting</div>
         </div>
       )}
 
+      {/* Meeting cards */}
       {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{[1,2,3].map(k => <Skeleton key={k} h={140} r={16} />)}</div>
-      ) : meetings.map((m, i) => (
-        <div key={m.id} style={{ background: "#fff", borderRadius: 16, padding: 18, marginBottom: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", animation: `fadeUp 0.3s ease ${i*0.07}s both` }} className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#1A1A1A" }}>{m.date}</div>
-              <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>📍 {m.location}</div>
-              {m.agenda && <div style={{ fontSize: 11, color: "#BBB", marginTop: 2 }}>📋 {m.agenda}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{[1,2,3].map(k => <Skeleton key={k} h={160} r={16} />)}</div>
+      ) : meetings.map((m, i) => {
+        const userHasEndorsed = currentUser && (m.proposer_id === currentUser.id || m.seconder_id === currentUser.id);
+        const canEndorse = m.transcript && !userHasEndorsed;
+
+        return (
+          <div key={m.id} style={{ background: "#fff", borderRadius: 16, padding: 18, marginBottom: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", animation: `fadeUp 0.3s ease ${i*0.07}s both` }} className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1A1A1A" }}>{m.date}</div>
+                <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>📍 {m.location}</div>
+                {m.agenda && <div style={{ fontSize: 11, color: "#BBB", marginTop: 2 }}>📋 {m.agenda}</div>}
+              </div>
+              <Tag label={m.status} color={m.status === "Approved" ? "#E8F5E9" : "#FFF8E1"} text={m.status === "Approved" ? "#2E7D32" : "#F57F17"} />
             </div>
-            <Tag label={m.status} color={m.status === "Approved" ? "#E8F5E9" : "#FFF8E1"} text={m.status === "Approved" ? "#2E7D32" : "#F57F17"} />
-          </div>
-          <div style={{ display: "flex", gap: 16, paddingBottom: 12, borderBottom: "1px solid #F5F4F0", marginBottom: 12 }}>
-            <div style={{ textAlign: "center" }}><div style={{ fontSize: 18, fontWeight: 700 }}>{m.attendance_count ?? m.attendance ?? 0}</div><div style={{ fontSize: 10, color: "#999" }}>Present</div></div>
-            <div style={{ width: 1, background: "#F0EEE8" }} />
-            <div style={{ textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 700, color: (m.total_collected||0) > 0 ? "#1A1A1A" : "#CCC" }}>{(m.total_collected||0) > 0 ? fmt(m.total_collected) : "—"}</div><div style={{ fontSize: 10, color: "#999" }}>Collected</div></div>
-            {m.decisions?.length > 0 && <><div style={{ width: 1, background: "#F0EEE8" }} /><div style={{ textAlign: "center" }}><div style={{ fontSize: 18, fontWeight: 700 }}>{m.decisions.length}</div><div style={{ fontSize: 10, color: "#999" }}>Decisions</div></div></>}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={() => setSelectedMeeting(m)} style={{ flex: 2, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 600 }}>📄 View Minutes</button>
-            {isAdmin && (
-              <>
-                <button className="btn" style={{ flex: 1, background: "#E8F5E9", color: "#2E7D32", border: "none", borderRadius: 10, padding: "9px 8px", fontSize: 11, fontWeight: 600 }}>Propose</button>
-                <button className="btn" style={{ flex: 1, background: "#E3F2FD", color: "#1565C0", border: "none", borderRadius: 10, padding: "9px 8px", fontSize: 11, fontWeight: 600 }}>Second</button>
-              </>
+
+            {/* Stats row */}
+            <div style={{ display: "flex", gap: 16, paddingBottom: 12, borderBottom: "1px solid #F5F4F0", marginBottom: 12 }}>
+              <div style={{ textAlign: "center" }}><div style={{ fontSize: 18, fontWeight: 700 }}>{m.attendance_count ?? 0}</div><div style={{ fontSize: 10, color: "#999" }}>Present</div></div>
+              <div style={{ width: 1, background: "#F0EEE8" }} />
+              <div style={{ textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 700, color: (m.total_collected||0) > 0 ? "#1A1A1A" : "#CCC" }}>{(m.total_collected||0) > 0 ? fmt(m.total_collected) : "—"}</div><div style={{ fontSize: 10, color: "#999" }}>Collected</div></div>
+              {m.decisions?.length > 0 && <><div style={{ width: 1, background: "#F0EEE8" }} /><div style={{ textAlign: "center" }}><div style={{ fontSize: 18, fontWeight: 700 }}>{m.decisions.length}</div><div style={{ fontSize: 10, color: "#999" }}>Decisions</div></div></>}
+            </div>
+
+            {/* Transcript snippet */}
+            {m.transcript && (
+              <div style={{ background: "#F7F6F2", borderRadius: 10, padding: "10px 12px", marginBottom: 12, fontSize: 11, color: "#555", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 9, color: "#C8A97E", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>🎙 AI TRANSCRIPT</div>
+                {m.transcript.slice(0, 140)}{m.transcript.length > 140 ? "…" : ""}
+              </div>
             )}
+
+            {/* Endorsements */}
+            {(m.proposer_name || m.seconder_name) && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                {m.proposer_name && (
+                  <div style={{ background: "#E8F5E9", borderRadius: 8, padding: "5px 10px", fontSize: 10, color: "#2E7D32", fontWeight: 600 }}>
+                    📝 Proposed: {m.proposer_name}
+                  </div>
+                )}
+                {m.seconder_name && (
+                  <div style={{ background: "#E3F2FD", borderRadius: 8, padding: "5px 10px", fontSize: 10, color: "#1565C0", fontWeight: 600 }}>
+                    🤝 Seconded: {m.seconder_name}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn" onClick={() => setSelectedMeeting(m)}
+                style={{ flex: 2, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 600 }}>
+                📄 View Minutes
+              </button>
+              {m.transcript && (
+                canEndorse ? (
+                  <button className="btn" onClick={() => setEndorseTarget(m)}
+                    style={{ flex: 1, background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 10, padding: "9px 8px", fontSize: 11, fontWeight: 600 }}>
+                    ✍ Endorse
+                  </button>
+                ) : userHasEndorsed ? (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#4CAF50", fontWeight: 600 }}>
+                    ✓ Endorsed
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#999" }}>
+                    Full
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Endorsement modal */}
+      {endorseTarget && (
+        <EndorsementModal
+          meeting={endorseTarget}
+          currentUser={currentUser}
+          onClose={() => setEndorseTarget(null)}
+          onEndorse={async (type) => {
+            try {
+              await api.endorseMeeting(endorseTarget.id, type);
+              showToast(`Meeting ${type === "propose" ? "proposed" : "seconded"} successfully`);
+              onRefresh();
+              setEndorseTarget(null);
+            } catch (e) {
+              showToast(e.message || "Failed to endorse", "error");
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Endorsement Modal ─────────────────────────────────────────────────────────
+
+function EndorsementModal({ meeting, currentUser, onClose, onEndorse }) {
+  const [choice,   setChoice]   = useState("");
+  const [endorsing,setEndorsing]= useState(false);
+
+  const proposeSlotFree = !meeting.proposer_id;
+  const secondSlotFree  = !meeting.seconder_id;
+
+  const handleSubmit = async () => {
+    if (!choice) return;
+    setEndorsing(true);
+    try {
+      await onEndorse(choice);
+    } finally {
+      setEndorsing(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div className="fade-up" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 420, padding: "24px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Endorse Meeting</div>
+            <div style={{ fontSize: 11, color: "#999", marginTop: 3 }}>{meeting.date} · {meeting.location}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        {/* Current endorsements */}
+        <div style={{ background: "#F7F6F2", borderRadius: 14, padding: 14, marginBottom: 20 }}>
+          <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 10 }}>CURRENT ENDORSEMENTS</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: meeting.proposer_name ? "#E8F5E9" : "#F0EEE8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                {meeting.proposer_name ? "✓" : "○"}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#1A1A1A" }}>Proposed by</div>
+                <div style={{ fontSize: 11, color: meeting.proposer_name ? "#2E7D32" : "#CCC" }}>
+                  {meeting.proposer_name || "Not yet proposed"}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: meeting.seconder_name ? "#E3F2FD" : "#F0EEE8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                {meeting.seconder_name ? "✓" : "○"}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#1A1A1A" }}>Seconded by</div>
+                <div style={{ fontSize: 11, color: meeting.seconder_name ? "#1565C0" : "#CCC" }}>
+                  {meeting.seconder_name || "Not yet seconded"}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      ))}
+
+        {/* Radio choices */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#1A1A1A", marginBottom: 12 }}>Your endorsement:</div>
+        {[
+          { value: "propose", label: "I propose the meeting minutes", available: proposeSlotFree, color: "#2E7D32", bg: "#E8F5E9" },
+          { value: "second",  label: "I second the meeting minutes",  available: secondSlotFree,  color: "#1565C0", bg: "#E3F2FD" },
+        ].map(opt => (
+          <div
+            key={opt.value}
+            onClick={() => opt.available && setChoice(opt.value)}
+            style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "14px 16px", borderRadius: 14, marginBottom: 10,
+              border: `2px solid ${choice === opt.value ? opt.color : "#ECEAE4"}`,
+              background: choice === opt.value ? opt.bg : opt.available ? "#fff" : "#F7F6F2",
+              cursor: opt.available ? "pointer" : "not-allowed",
+              opacity: opt.available ? 1 : 0.5,
+              transition: "all 0.15s",
+            }}
+          >
+            <div style={{
+              width: 20, height: 20, borderRadius: "50%", border: `2px solid ${choice === opt.value ? opt.color : "#DDD"}`,
+              background: choice === opt.value ? opt.color : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s",
+            }}>
+              {choice === opt.value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: opt.available ? "#1A1A1A" : "#999" }}>{opt.label}</div>
+              {!opt.available && <div style={{ fontSize: 10, color: "#BBB", marginTop: 1 }}>Slot already taken</div>}
+            </div>
+          </div>
+        ))}
+
+        <button
+          className="btn"
+          onClick={handleSubmit}
+          disabled={!choice || endorsing}
+          style={{ width: "100%", marginTop: 8, background: choice && !endorsing ? "#1A1A1A" : "#ECEAE4", color: choice && !endorsing ? "#F7F6F2" : "#BBB", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.2s" }}
+        >
+          {endorsing ? <><Spinner /> Submitting…</> : "Submit Endorsement"}
+        </button>
+      </div>
     </div>
   );
 }

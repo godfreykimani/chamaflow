@@ -109,6 +109,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_members_phone  ON members(phone);
 `);
 
+// Add transcript column if meetings table was created before this feature
+try { db.exec("ALTER TABLE meetings ADD COLUMN transcript TEXT"); } catch {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS meeting_endorsements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    member_id  INTEGER NOT NULL REFERENCES members(id),
+    type       TEXT    NOT NULL CHECK(type IN ('propose','second')),
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(meeting_id, type),
+    UNIQUE(meeting_id, member_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_endorse_meeting ON meeting_endorsements(meeting_id);
+`);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const ok       = (res, data, status=200) => res.status(status).json({ ok:true, data });
@@ -290,6 +306,9 @@ app.delete("/api/contributions/:id", requireAdmin, (req, res) => {
 const storage = multer.diskStorage({ destination:(_,__,cb)=>cb(null,UPLOADS), filename:(_,f,cb)=>cb(null,`${uuidv4()}${path.extname(f.originalname)}`) });
 const upload  = multer({ storage, limits:{fileSize:5*1024*1024} });
 
+const audioStorage = multer.diskStorage({ destination:(_,__,cb)=>cb(null,UPLOADS), filename:(_,f,cb)=>cb(null,`audio-${uuidv4()}${path.extname(f.originalname)||".webm"}`) });
+const audioUpload  = multer({ storage:audioStorage, limits:{fileSize:50*1024*1024} });
+
 app.post("/api/contributions/:id/upload", requireAdmin, upload.single("proof"), (req, res) => {
   if (!db.prepare("SELECT id FROM contributions WHERE id=?").get(req.params.id)) return notFound(res,"Contribution");
   if (!req.file) return fail(res,"No file uploaded");
@@ -300,12 +319,23 @@ app.post("/api/contributions/:id/upload", requireAdmin, upload.single("proof"), 
 
 // ─── MEETINGS ─────────────────────────────────────────────────────────────────
 
+const getEndorsementsStmt = db.prepare("SELECT me.type, me.member_id, mb.name as member_name FROM meeting_endorsements me JOIN members mb ON me.member_id=mb.id WHERE me.meeting_id=?");
+
 app.get("/api/meetings", (req, res) => {
-  ok(res, db.prepare("SELECT * FROM meetings ORDER BY date DESC").all().map(m => ({
-    ...m,
-    attendance_count: db.prepare("SELECT COUNT(*) as c FROM meeting_attendance WHERE meeting_id=? AND status='present'").get(m.id).c,
-    decisions: db.prepare("SELECT * FROM meeting_decisions WHERE meeting_id=?").all(m.id),
-  })));
+  ok(res, db.prepare("SELECT * FROM meetings ORDER BY date DESC").all().map(m => {
+    const endorsements = getEndorsementsStmt.all(m.id);
+    const proposer = endorsements.find(e => e.type === "propose");
+    const seconder = endorsements.find(e => e.type === "second");
+    return {
+      ...m,
+      attendance_count: db.prepare("SELECT COUNT(*) as c FROM meeting_attendance WHERE meeting_id=? AND status='present'").get(m.id).c,
+      decisions: db.prepare("SELECT * FROM meeting_decisions WHERE meeting_id=?").all(m.id),
+      proposer_name: proposer?.member_name || null,
+      proposer_id:   proposer?.member_id   || null,
+      seconder_name: seconder?.member_name || null,
+      seconder_id:   seconder?.member_id   || null,
+    };
+  }));
 });
 
 app.get("/api/meetings/:id", (req, res) => {
@@ -350,6 +380,70 @@ app.post("/api/meetings/:id/decisions", requireAdmin, (req, res) => {
   const r = db.prepare("INSERT INTO meeting_decisions (meeting_id,decision,proposed_by,seconded_by) VALUES (?,?,?,?)").run(req.params.id,decision,proposed_by||null,seconded_by||null);
   audit(req.user.id,"ADD_DECISION",`meeting:${req.params.id}`,{decision});
   ok(res, db.prepare("SELECT * FROM meeting_decisions WHERE id=?").get(r.lastInsertRowid), 201);
+});
+
+// POST /api/meetings/:id/transcript — Chairman/Secretary only, audio → Groq Whisper → save
+app.post("/api/meetings/:id/transcript", requireAdmin, audioUpload.single("audio"), async (req, res) => {
+  const meeting = db.prepare("SELECT id FROM meetings WHERE id=?").get(req.params.id);
+  if (!meeting) return notFound(res, "Meeting");
+  if (!req.file) return fail(res, "No audio file uploaded");
+
+  const GROQ_API_KEY = process.env.GROQ_API_KEY;
+  if (!GROQ_API_KEY) { fs.unlink(req.file.path, ()=>{}); return fail(res, "GROQ_API_KEY not configured on server"); }
+
+  try {
+    const audioData = fs.readFileSync(req.file.path);
+    const blob = new Blob([audioData], { type: req.file.mimetype || "audio/webm" });
+    const form = new FormData();
+    form.append("file", blob, req.file.originalname || "recording.webm");
+    form.append("model", "whisper-large-v3");
+
+    const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: form,
+    });
+
+    fs.unlink(req.file.path, () => {});
+
+    if (!groqRes.ok) {
+      const errText = await groqRes.text();
+      return fail(res, `Groq API error: ${errText}`);
+    }
+
+    const data = await groqRes.json();
+    const transcript = data.text;
+    db.prepare("UPDATE meetings SET transcript=? WHERE id=?").run(transcript, req.params.id);
+    audit(req.user.id, "TRANSCRIBE_MEETING", `meeting:${req.params.id}`);
+    ok(res, { transcript });
+  } catch (e) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    return fail(res, e.message || "Transcription failed");
+  }
+});
+
+// POST /api/meetings/:id/endorse — any member, propose or second the transcript
+app.post("/api/meetings/:id/endorse", (req, res) => {
+  const { type } = req.body;
+  if (!["propose","second"].includes(type)) return fail(res, "type must be 'propose' or 'second'");
+
+  const meeting = db.prepare("SELECT id, transcript FROM meetings WHERE id=?").get(req.params.id);
+  if (!meeting) return notFound(res, "Meeting");
+  if (!meeting.transcript) return fail(res, "This meeting has no transcript yet");
+
+  try {
+    db.prepare("INSERT INTO meeting_endorsements (meeting_id, member_id, type) VALUES (?,?,?)")
+      .run(req.params.id, req.user.id, type);
+    audit(req.user.id, "ENDORSE_MEETING", `meeting:${req.params.id}`, { type });
+    ok(res, { message: `Meeting ${type === "propose" ? "proposed" : "seconded"} successfully` });
+  } catch (e) {
+    if (e.message?.includes("UNIQUE constraint")) {
+      return fail(res, e.message.includes("meeting_id, type")
+        ? `This meeting already has a ${type === "propose" ? "proposer" : "seconder"}`
+        : "You have already endorsed this meeting");
+    }
+    return fail(res, e.message || "Failed to endorse");
+  }
 });
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────

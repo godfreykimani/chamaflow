@@ -115,6 +115,22 @@ export const recordAttendance = (meetingId, body) =>
 export const addDecision = (meetingId, body) =>
   request(`/meetings/${meetingId}/decisions`, { method: "POST", body: JSON.stringify(body) });
 
+export const transcribeMeeting = (id, audioBlob) => {
+  const t = token.get();
+  const form = new FormData();
+  form.append("audio", audioBlob, "recording.webm");
+  return fetch(`${BASE}/meetings/${id}/transcript`, {
+    method: "POST",
+    headers: t ? { Authorization: `Bearer ${t}` } : {},
+    body: form,
+  })
+    .then(r => r.json())
+    .then(j => { if (!j.ok) throw new Error(j.error); return j.data; });
+};
+
+export const endorseMeeting = (id, type) =>
+  request(`/meetings/${id}/endorse`, { method: "POST", body: JSON.stringify({ type }) });
+
 // ─── Dashboard & Summary ──────────────────────────────────────────────────────
 
 export const getDashboard = (memberId) => request(`/dashboard/${memberId}`);
