@@ -109,6 +109,9 @@ export const addMeeting = (body) =>
 export const updateMeeting = (id, body) =>
   request(`/meetings/${id}`, { method: "PUT", body: JSON.stringify(body) });
 
+export const deleteMeeting = (id) =>
+  request(`/meetings/${id}`, { method: "DELETE" });
+
 export const recordAttendance = (meetingId, body) =>
   request(`/meetings/${meetingId}/attendance`, { method: "POST", body: JSON.stringify(body) });
 

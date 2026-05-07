@@ -78,6 +78,7 @@ db.exec(`
     agenda          TEXT,
     status          TEXT NOT NULL DEFAULT 'Pending Approval',
     minutes_text    TEXT,
+    transcript      TEXT,
     total_collected REAL NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -380,6 +381,14 @@ app.post("/api/meetings/:id/decisions", requireAdmin, (req, res) => {
   const r = db.prepare("INSERT INTO meeting_decisions (meeting_id,decision,proposed_by,seconded_by) VALUES (?,?,?,?)").run(req.params.id,decision,proposed_by||null,seconded_by||null);
   audit(req.user.id,"ADD_DECISION",`meeting:${req.params.id}`,{decision});
   ok(res, db.prepare("SELECT * FROM meeting_decisions WHERE id=?").get(r.lastInsertRowid), 201);
+});
+
+app.delete("/api/meetings/:id", requireAdmin, (req, res) => {
+  const m = db.prepare("SELECT * FROM meetings WHERE id=?").get(req.params.id);
+  if (!m) return notFound(res, "Meeting");
+  db.prepare("DELETE FROM meetings WHERE id=?").run(req.params.id);
+  audit(req.user.id, "DELETE_MEETING", `meeting:${req.params.id}`, { date: m.date });
+  ok(res, { message: "Meeting deleted" });
 });
 
 // POST /api/meetings/:id/transcript — Chairman/Secretary only, audio → Groq Whisper → save

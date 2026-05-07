@@ -730,15 +730,31 @@ function Chip({ label, onRemove, dark, bg, color, border }) {
 
 function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeeting, showToast, onRefresh }) {
   const [showRec,        setShowRec]        = useState(false);
-  const [recMeetingId,   setRecMeetingId]   = useState("");
+  const [recMonth,       setRecMonth]       = useState("");
   const [recording,      setRecording]      = useState(false);
   const [transcribing,   setTranscribing]   = useState(false);
   const [waveform,       setWaveform]       = useState([]);
-  const [endorseTarget,  setEndorseTarget]  = useState(null); // meeting object
+  const [endorseTarget,  setEndorseTarget]  = useState(null);
+  const [deleteConfirm,  setDeleteConfirm]  = useState(null); // meeting id pending confirmation
+  const [deleting,       setDeleting]       = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
   const waveTimerRef     = useRef(null);
+
+  // Derive the matched meeting from the selected month (may be null for future months)
+  const recMeeting = recMonth
+    ? meetings.find(m => {
+        const [monthName, year] = recMonth.split(" ");
+        return m.date.includes(monthName) && m.date.includes(year);
+      })
+    : null;
+
+  // Month options: 12 months back → 12 months ahead
+  const monthOptions = Array.from({ length: 25 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 12 + i, 1);
+    return d.toLocaleString("en-GB", { month: "long" }) + " " + d.getFullYear();
+  });
 
   // Waveform animation while recording
   useEffect(() => {
@@ -749,10 +765,12 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
   }, [recording]);
 
   const handleStartRecording = async () => {
-    if (!recMeetingId) return showToast("Select a meeting first", "error");
+    if (!recMonth) return showToast("Select a month first", "error");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus" : "audio/webm";
+      const mr = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mr;
       audioChunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
@@ -767,15 +785,38 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
   const handleStopRecording = () => {
     const mr = mediaRecorderRef.current;
     if (!mr) return;
+    // Capture values now — closures inside onstop must not rely on state
+    const capturedMeeting = recMeeting;
+    const capturedMonth   = recMonth;
+    const capturedMime    = mr.mimeType || "audio/webm";
+
     mr.onstop = async () => {
+      if (audioChunksRef.current.length === 0) {
+        showToast("No audio captured — please try again", "error");
+        return;
+      }
       setTranscribing(true);
       try {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        await api.transcribeMeeting(recMeetingId, audioBlob);
-        showToast("Transcript saved — meeting updated");
+        let meetingId = capturedMeeting?.id;
+
+        // No existing meeting for this month — create a placeholder
+        if (!meetingId) {
+          const [monthName, year] = capturedMonth.split(" ");
+          const created = await api.addMeeting({
+            date:     `${monthName} 1, ${year}`,
+            location: "TBD — update after meeting",
+            agenda:   `${capturedMonth} monthly meeting`,
+          });
+          meetingId = created.id;
+          showToast(`New meeting created for ${capturedMonth}`);
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: capturedMime });
+        await api.transcribeMeeting(meetingId, audioBlob);
+        showToast("Transcript saved successfully");
         onRefresh();
         setShowRec(false);
-        setRecMeetingId("");
+        setRecMonth("");
       } catch (e) {
         showToast(e.message || "Transcription failed", "error");
       } finally {
@@ -808,14 +849,24 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
         <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 20, marginBottom: 20 }} className="fade-up">
           <div style={{ fontSize: 13, fontWeight: 600, color: "#F7F6F2", marginBottom: 14 }}>🎙 AI Meeting Recorder</div>
 
-          {/* Meeting selector */}
+          {/* Month selector */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: "#666", letterSpacing: 0.5, marginBottom: 6 }}>SELECT MEETING TO RECORD</div>
-            <select value={recMeetingId} onChange={e => setRecMeetingId(e.target.value)} disabled={recording || transcribing}
+            <div style={{ fontSize: 10, color: "#666", letterSpacing: 0.5, marginBottom: 6 }}>SELECT MEETING MONTH</div>
+            <select value={recMonth} onChange={e => setRecMonth(e.target.value)} disabled={recording || transcribing}
               style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #333", background: "#2A2A2A", color: "#F0EDE6", fontSize: 12, fontFamily: "inherit", outline: "none" }}>
-              <option value="">Choose meeting…</option>
-              {meetings.map(m => <option key={m.id} value={m.id}>{m.date} — {m.location}</option>)}
+              <option value="">Choose month…</option>
+              {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
+            {recMeeting && (
+              <div style={{ fontSize: 10, color: "#4CAF50", marginTop: 5 }}>
+                ✓ {recMeeting.date} — {recMeeting.location}
+              </div>
+            )}
+            {recMonth && !recMeeting && (
+              <div style={{ fontSize: 10, color: "#C8A97E", marginTop: 5 }}>
+                ◎ No meeting scheduled yet — a placeholder will be created automatically
+              </div>
+            )}
           </div>
 
           {/* Waveform */}
@@ -838,8 +889,8 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
               ⏹ Stop &amp; Transcribe
             </button>
           ) : (
-            <button className="btn" onClick={handleStartRecording} disabled={!recMeetingId}
-              style={{ width: "100%", background: recMeetingId ? "#C8A97E" : "#2A2A2A", color: recMeetingId ? "#1A1A1A" : "#555", border: "none", borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700 }}>
+            <button className="btn" onClick={handleStartRecording} disabled={!recMonth}
+              style={{ width: "100%", background: recMonth ? "#C8A97E" : "#2A2A2A", color: recMonth ? "#1A1A1A" : "#555", border: "none", borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700 }}>
               ⏺ Start Recording
             </button>
           )}
@@ -847,12 +898,15 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
         </div>
       )}
 
-      {/* Meeting cards */}
+      {/* Meeting cards — newest first */}
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{[1,2,3].map(k => <Skeleton key={k} h={160} r={16} />)}</div>
-      ) : meetings.map((m, i) => {
+      ) : [...meetings]
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .map((m, i) => {
         const userHasEndorsed = currentUser && (m.proposer_id === currentUser.id || m.seconder_id === currentUser.id);
-        const canEndorse = m.transcript && !userHasEndorsed;
+        const canEndorse      = m.transcript && !userHasEndorsed;
+        const confirmingDelete = deleteConfirm === m.id;
 
         return (
           <div key={m.id} style={{ background: "#fff", borderRadius: 16, padding: 18, marginBottom: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", animation: `fadeUp 0.3s ease ${i*0.07}s both` }} className="card">
@@ -862,8 +916,46 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
                 <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>📍 {m.location}</div>
                 {m.agenda && <div style={{ fontSize: 11, color: "#BBB", marginTop: 2 }}>📋 {m.agenda}</div>}
               </div>
-              <Tag label={m.status} color={m.status === "Approved" ? "#E8F5E9" : "#FFF8E1"} text={m.status === "Approved" ? "#2E7D32" : "#F57F17"} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Tag label={m.status} color={m.status === "Approved" ? "#E8F5E9" : "#FFF8E1"} text={m.status === "Approved" ? "#2E7D32" : "#F57F17"} />
+                {isAdmin && (
+                  <button
+                    className="btn"
+                    onClick={() => setDeleteConfirm(confirmingDelete ? null : m.id)}
+                    style={{ background: confirmingDelete ? "#FBE9E7" : "#F5F4F0", border: "none", borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: confirmingDelete ? "#C62828" : "#BBB", cursor: "pointer", flexShrink: 0 }}>
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Delete confirmation bar */}
+            {confirmingDelete && (
+              <div style={{ background: "#FBE9E7", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontSize: 12, color: "#BF360C", fontWeight: 500 }}>Delete this meeting and all its data?</div>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  <button onClick={() => setDeleteConfirm(null)} style={{ background: "#fff", border: "1px solid #DDD", borderRadius: 8, padding: "5px 12px", fontSize: 11, cursor: "pointer", color: "#555" }}>Cancel</button>
+                  <button
+                    disabled={deleting}
+                    onClick={async () => {
+                      setDeleting(true);
+                      try {
+                        await api.deleteMeeting(m.id);
+                        setDeleteConfirm(null);
+                        showToast("Meeting deleted");
+                        onRefresh();
+                      } catch (e) {
+                        showToast(e.message || "Failed to delete", "error");
+                      } finally {
+                        setDeleting(false);
+                      }
+                    }}
+                    style={{ background: "#C62828", border: "none", borderRadius: 8, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", color: "#fff" }}>
+                    {deleting ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Stats row */}
             <div style={{ display: "flex", gap: 16, paddingBottom: 12, borderBottom: "1px solid #F5F4F0", marginBottom: 12 }}>
@@ -1108,6 +1200,15 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
             <option value="Contribution">Contribution (min KES 5,000)</option>
             <option value="Fine">Fine (KES 500)</option>
             <option value="Lateness">Lateness (KES 200)</option>
+          </select>
+        </Label>
+
+        <Label text="MONTH">
+          <select value={F.month} onChange={e => setF("month", e.target.value)} style={{ ...selectStyle, width: "100%" }}>
+            {Array.from({ length: 14 }, (_, i) => {
+              const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+              return d.toLocaleString("en-GB", { month: "long" }) + " " + d.getFullYear();
+            }).map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </Label>
 

@@ -16,9 +16,22 @@ db.pragma("foreign_keys = ON");
 
 console.log("🌱  Seeding ChamaFlow database…\n");
 
+// ─── Skip if data already exists ─────────────────────────────────────────────
+
+try {
+  const existing = db.prepare("SELECT COUNT(*) as c FROM members").get();
+  if (existing.c > 0) {
+    console.log(`✅  Database already has ${existing.c} members — skipping seed to preserve live data.`);
+    console.log("    Run with --force to wipe and reseed: node seed.js --force\n");
+    if (!process.argv.includes("--force")) { db.close(); process.exit(0); }
+    console.log("⚠️   --force flag detected — wiping and reseeding…\n");
+  }
+} catch {}
+
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 db.exec(`
+  DROP TABLE IF EXISTS meeting_endorsements;
   DROP TABLE IF EXISTS meeting_decisions;
   DROP TABLE IF EXISTS meeting_attendance;
   DROP TABLE IF EXISTS meetings;
@@ -59,6 +72,7 @@ db.exec(`
     agenda          TEXT,
     status          TEXT NOT NULL DEFAULT 'Pending Approval',
     minutes_text    TEXT,
+    transcript      TEXT,
     total_collected REAL NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -217,6 +231,22 @@ const seedDecisions = db.transaction(() => {
 });
 seedDecisions();
 console.log(`✅  Meeting attendance & decisions inserted`);
+
+// ─── Endorsements table (created here so it exists after --force wipe) ────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS meeting_endorsements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    member_id  INTEGER NOT NULL REFERENCES members(id),
+    type       TEXT    NOT NULL CHECK(type IN ('propose','second')),
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(meeting_id, type),
+    UNIQUE(meeting_id, member_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_endorse_meeting ON meeting_endorsements(meeting_id);
+`);
+console.log(`✅  meeting_endorsements table ready`);
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
