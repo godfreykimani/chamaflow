@@ -22,4 +22,13 @@ const recent = db.prepare(
 console.log("\nLast 10 contributions:");
 recent.forEach(r => console.log(`  #${r.id} ${r.month} KES${r.amount} [${r.status}] @ ${r.created_at}`));
 
+const auditRecent = db.prepare(
+  "SELECT id, action, target, details, created_at FROM audit_log ORDER BY id DESC LIMIT 20"
+).all();
+console.log("\nLast 20 audit entries:");
+auditRecent.forEach(r => console.log(`  #${r.id} [${r.created_at}] ${r.action} ${r.target||''} ${r.details||''}`));
+
+const seqRow = db.prepare("SELECT seq FROM sqlite_sequence WHERE name='contributions'").get();
+console.log(`\ncontributions auto-increment seq: ${seqRow ? seqRow.seq : "N/A"}`);
+
 db.close();
