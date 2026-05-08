@@ -144,6 +144,10 @@ export const getDashboard = (memberId) => request(`/dashboard/${memberId}`);
 export const getMonthlySummary = (month) =>
   request(`/summary?month=${encodeURIComponent(month)}`);
 
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+export const getAnnualReport = (year) => request(`/report/annual?year=${year}`);
+
 // ─── Audit ────────────────────────────────────────────────────────────────────
 
 export const getAuditLog = () => request("/audit");

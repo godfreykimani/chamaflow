@@ -390,12 +390,57 @@ app.put("/api/meetings/:id", requireAdmin, (req, res) => {
 });
 
 app.post("/api/meetings/:id/attendance", requireAdmin, (req, res) => {
-  const {member_id,status="present"} = req.body;
+  const meetingId = req.params.id;
+  const {member_id, status="present"} = req.body;
   if (!member_id) return fail(res,"member_id required");
-  const ex = db.prepare("SELECT id FROM meeting_attendance WHERE meeting_id=? AND member_id=?").get(req.params.id,member_id);
+
+  const meeting = db.prepare("SELECT * FROM meetings WHERE id=?").get(meetingId);
+  if (!meeting) return notFound(res,"Meeting");
+
+  // Upsert attendance
+  const ex = db.prepare("SELECT id,status FROM meeting_attendance WHERE meeting_id=? AND member_id=?").get(meetingId,member_id);
+  const prevStatus = ex?.status ?? "present";
   ex ? db.prepare("UPDATE meeting_attendance SET status=? WHERE id=?").run(status,ex.id)
-     : db.prepare("INSERT INTO meeting_attendance (meeting_id,member_id,status) VALUES (?,?,?)").run(req.params.id,member_id,status);
-  ok(res,{message:"Attendance recorded"});
+     : db.prepare("INSERT INTO meeting_attendance (meeting_id,member_id,status) VALUES (?,?,?)").run(meetingId,member_id,status);
+
+  // ── Auto-fine logic ─────────────────────────────────────────────────────────
+  const FINE_NOTE_PREFIX = `auto-fine:meeting:${meetingId}`;
+  const fineType   = status === "absent" ? "Fine" : status === "apology" ? "Lateness" : null;
+  const fineAmount = status === "absent" ? 500 : status === "apology" ? 200 : null;
+
+  // Determine meeting month string for the fine record
+  const meetingDate = new Date(meeting.date);
+  const fineMonth   = isNaN(meetingDate)
+    ? meeting.date                  // fallback: use raw date string
+    : meetingDate.toLocaleString("en-GB",{month:"long"}) + " " + meetingDate.getFullYear();
+
+  let autoFine = null;
+
+  if (fineType) {
+    // Check for existing auto-fine for this member+meeting
+    const existingFine = db.prepare(
+      "SELECT id FROM contributions WHERE member_id=? AND notes=? AND type IN ('Fine','Lateness')"
+    ).get(member_id, FINE_NOTE_PREFIX);
+
+    if (!existingFine) {
+      const r = db.prepare(
+        "INSERT INTO contributions (member_id,type,month,amount,method,status,notes,recorded_by) VALUES (?,?,?,?,'Auto','Pending',?,?)"
+      ).run(member_id, fineType, fineMonth, fineAmount, FINE_NOTE_PREFIX, req.user.id);
+      audit(req.user.id,"AUTO_FINE",`contribution:${r.lastInsertRowid}`,{member_id,type:fineType,amount:fineAmount,meeting_id:meetingId});
+      autoFine = { id: r.lastInsertRowid, type: fineType, amount: fineAmount };
+    }
+  } else if (prevStatus !== "present") {
+    // Changed back to present — remove the auto-fine if it's still Pending
+    const existingFine = db.prepare(
+      "SELECT id FROM contributions WHERE member_id=? AND notes=? AND status='Pending'"
+    ).get(member_id, FINE_NOTE_PREFIX);
+    if (existingFine) {
+      db.prepare("DELETE FROM contributions WHERE id=?").run(existingFine.id);
+      audit(req.user.id,"REMOVE_AUTO_FINE",`contribution:${existingFine.id}`,{member_id,meeting_id:meetingId});
+    }
+  }
+
+  ok(res, { message: "Attendance recorded", autoFine });
 });
 
 app.post("/api/meetings/:id/decisions", requireAdmin, (req, res) => {
@@ -502,6 +547,73 @@ app.get("/api/summary", (req, res) => {
   if (!month) return fail(res,"month query param required");
   const rows = db.prepare(`SELECT m.id,m.name,m.shares,(m.shares*5000) AS expected,COALESCE(SUM(CASE WHEN c.type='Contribution' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_contrib,COALESCE(SUM(CASE WHEN c.type='Fine' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_fines,COALESCE(SUM(CASE WHEN c.type='Lateness' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_lateness FROM members m LEFT JOIN contributions c ON c.member_id=m.id AND c.month=? WHERE m.active=1 GROUP BY m.id ORDER BY m.name`).all(month);
   ok(res,{month,rows,totalExpected:rows.reduce((s,r)=>s+r.expected,0),totalPaid:rows.reduce((s,r)=>s+r.paid_contrib,0),totalFines:rows.reduce((s,r)=>s+r.paid_fines,0),totalLateness:rows.reduce((s,r)=>s+r.paid_lateness,0)});
+});
+
+// ─── ANNUAL REPORT ────────────────────────────────────────────────────────────
+
+app.get("/api/report/annual", requireAuth, (req, res) => {
+  const year = req.query.year || new Date().getFullYear();
+
+  // Per-member contribution totals for the year
+  const members = db.prepare(`
+    SELECT
+      m.id, m.name, m.shares,
+      (m.shares * 5000 * 12) AS expected_annual,
+      COALESCE(SUM(CASE WHEN c.type='Contribution' AND c.status='Confirmed' THEN c.amount END),0) AS contributions,
+      COALESCE(SUM(CASE WHEN c.type='Fine'         AND c.status='Confirmed' THEN c.amount END),0) AS fines,
+      COALESCE(SUM(CASE WHEN c.type='Lateness'     AND c.status='Confirmed' THEN c.amount END),0) AS lateness
+    FROM members m
+    LEFT JOIN contributions c ON c.member_id=m.id AND c.month LIKE ?
+    WHERE m.active=1
+    GROUP BY m.id
+    ORDER BY contributions DESC
+  `).all(`% ${year}`);
+
+  // Attendance per member across all meetings in the year
+  const attendance = db.prepare(`
+    SELECT ma.member_id,
+      COUNT(*) AS meetings_total,
+      SUM(CASE WHEN ma.status='present' THEN 1 ELSE 0 END) AS present,
+      SUM(CASE WHEN ma.status='apology' THEN 1 ELSE 0 END) AS apology,
+      SUM(CASE WHEN ma.status='absent'  THEN 1 ELSE 0 END) AS absent
+    FROM meeting_attendance ma
+    JOIN meetings mt ON mt.id=ma.meeting_id AND mt.date LIKE ?
+    GROUP BY ma.member_id
+  `).all(`% ${year}`);
+
+  const attMap = Object.fromEntries(attendance.map(a => [a.member_id, a]));
+  const membersWithAtt = members.map(m => ({ ...m, ...(attMap[m.id] || { meetings_total:0, present:0, apology:0, absent:0 }) }));
+
+  // Monthly totals
+  const monthly = db.prepare(`
+    SELECT month,
+      COALESCE(SUM(CASE WHEN type='Contribution' AND status='Confirmed' THEN amount END),0) AS contributions,
+      COALESCE(SUM(CASE WHEN type='Fine'         AND status='Confirmed' THEN amount END),0) AS fines,
+      COALESCE(SUM(CASE WHEN type='Lateness'     AND status='Confirmed' THEN amount END),0) AS lateness
+    FROM contributions
+    WHERE month LIKE ?
+    GROUP BY month
+    ORDER BY month
+  `).all(`% ${year}`);
+
+  // Meeting summary
+  const meetings = db.prepare(`
+    SELECT COUNT(*) AS total,
+      SUM(CASE WHEN status='Approved' THEN 1 ELSE 0 END) AS approved,
+      SUM(CASE WHEN status='Pending Approval' THEN 1 ELSE 0 END) AS pending
+    FROM meetings WHERE date LIKE ?
+  `).get(`% ${year}`);
+
+  // Grand totals
+  const totals = {
+    contributions: membersWithAtt.reduce((s,m)=>s+m.contributions,0),
+    fines:         membersWithAtt.reduce((s,m)=>s+m.fines,0),
+    lateness:      membersWithAtt.reduce((s,m)=>s+m.lateness,0),
+    expected:      membersWithAtt.reduce((s,m)=>s+m.expected_annual,0),
+  };
+  totals.grand = totals.contributions + totals.fines + totals.lateness;
+
+  ok(res, { year, members: membersWithAtt, monthly, meetings, totals });
 });
 
 // ─── AUDIT LOG ────────────────────────────────────────────────────────────────

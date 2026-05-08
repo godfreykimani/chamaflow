@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { id: "meetings",      label: "Meetings",      icon: "◉" },
   { id: "record",        label: "Record",        icon: "⊕" },
   { id: "members",       label: "Members",       icon: "◎" },
+  { id: "report",        label: "Annual Report", icon: "▤", adminOnly: true },
   { id: "settings",      label: "Settings",      icon: "⊙" },
 ];
 
@@ -243,6 +244,18 @@ function ChamaFlow({ onLogout }) {
       .finally(() => setLoad("summary", false));
   }, [page]);
 
+  // ── Annual report ──
+  const [annualReport,     setAnnualReport]     = useState(null);
+  const [reportYear,       setReportYear]       = useState(String(now.getFullYear()));
+  useEffect(() => {
+    if (page !== "report") return;
+    setLoad("report", true);
+    api.getAnnualReport(reportYear)
+      .then(setAnnualReport)
+      .catch(() => showToast("Failed to load report", "error"))
+      .finally(() => setLoad("report", false));
+  }, [page, reportYear]);
+
   // ── Record contribution ──
   const handleRecordContrib = async () => {
     const { member_id, type, month, amount, method, ref, confirmed } = recordForm;
@@ -395,7 +408,7 @@ function ChamaFlow({ onLogout }) {
               <div style={{ fontSize: 10, color: "#555", marginTop: 2, letterSpacing: 1 }}>SAVINGS PLATFORM</div>
             </div>
             <div style={{ padding: "0 12px", flex: 1 }}>
-              {NAV_ITEMS.filter(n => isAdmin || !["record","members"].includes(n.id)).map(item => (
+              {NAV_ITEMS.filter(n => isAdmin || !n.adminOnly).map(item => (
                 <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
                   display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 14px",
                   borderRadius: 10, border: "none", marginBottom: 2, textAlign: "left", transition: "all 0.15s",
@@ -455,6 +468,7 @@ function ChamaFlow({ onLogout }) {
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} showToast={showToast} onRefresh={loadMeetings} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} />}
+              {page === "report"  && isAdmin && <AnnualReportPage report={annualReport} loading={loading.report} year={reportYear} setYear={setReportYear} />}
               {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} />}
             </div>
           </div>
@@ -462,7 +476,7 @@ function ChamaFlow({ onLogout }) {
           {/* Mobile bottom nav */}
           {viewMode === "mobile" && (
             <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#F7F6F2", borderTop: "1px solid #ECEAE4", display: "flex", padding: "8px 0 16px", zIndex: 100 }}>
-              {NAV_ITEMS.filter(n => isAdmin || !["record","members"].includes(n.id)).map(item => (
+              {NAV_ITEMS.filter(n => isAdmin || !n.adminOnly).map(item => (
                 <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
                   flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
                   border: "none", background: "transparent", padding: "4px 2px", borderRadius: 8,
@@ -775,9 +789,10 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
   const [recording,      setRecording]      = useState(false);
   const [transcribing,   setTranscribing]   = useState(false);
   const [waveform,       setWaveform]       = useState([]);
-  const [endorseTarget,  setEndorseTarget]  = useState(null);
-  const [deleteConfirm,  setDeleteConfirm]  = useState(null); // meeting id pending confirmation
-  const [deleting,       setDeleting]       = useState(false);
+  const [endorseTarget,    setEndorseTarget]    = useState(null);
+  const [attendanceTarget, setAttendanceTarget] = useState(null);
+  const [deleteConfirm,    setDeleteConfirm]    = useState(null);
+  const [deleting,         setDeleting]         = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
@@ -1042,6 +1057,12 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
                 style={{ flex: 2, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 600 }}>
                 📄 View Minutes
               </button>
+              {isAdmin && (
+                <button className="btn" onClick={() => setAttendanceTarget(m)}
+                  style={{ flex: 1, background: "#E8F0FE", color: "#1565C0", border: "none", borderRadius: 10, padding: "9px 8px", fontSize: 11, fontWeight: 600 }}>
+                  ✓ Attendance
+                </button>
+              )}
               {m.transcript && (
                 canEndorse ? (
                   <button className="btn" onClick={() => setEndorseTarget(m)}
@@ -1062,6 +1083,15 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
           </div>
         );
       })}
+
+      {/* Attendance modal */}
+      {attendanceTarget && (
+        <AttendanceModal
+          meeting={attendanceTarget}
+          onClose={() => { setAttendanceTarget(null); onRefresh(); }}
+          showToast={showToast}
+        />
+      )}
 
       {/* Endorsement modal */}
       {endorseTarget && (
@@ -1187,6 +1217,305 @@ function EndorsementModal({ meeting, currentUser, onClose, onEndorse }) {
           {endorsing ? <><Spinner /> Submitting…</> : "Submit Endorsement"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Attendance Modal ──────────────────────────────────────────────────────────
+
+function AttendanceModal({ meeting, onClose, showToast }) {
+  const [rows,    setRows]    = useState(null);
+  const [saving,  setSaving]  = useState(null); // member_id being saved
+  const [fines,   setFines]   = useState([]);   // auto-generated fines this session
+
+  useEffect(() => {
+    api.getMeeting(meeting.id).then(data => {
+      setRows(data.attendance.map(a => ({ ...a, dirty: false })));
+    }).catch(() => showToast("Failed to load attendance", "error"));
+  }, [meeting.id]);
+
+  const STATUS_OPTS = [
+    { value: "present", label: "Present",  color: "#2E7D32", bg: "#E8F5E9" },
+    { value: "apology", label: "Apology",  color: "#F57F17", bg: "#FFF8E1" },
+    { value: "absent",  label: "Absent",   color: "#C62828", bg: "#FFEBEE" },
+  ];
+
+  const handleChange = async (memberId, status) => {
+    setRows(prev => prev.map(r => r.id === memberId ? { ...r, status, dirty: true } : r));
+    setSaving(memberId);
+    try {
+      const result = await api.recordAttendance(meeting.id, { member_id: memberId, status });
+      if (result?.autoFine) {
+        const name = rows.find(r => r.id === memberId)?.name ?? "Member";
+        const msg  = `Auto-fine: ${name} — KES ${result.autoFine.amount} (${result.autoFine.type})`;
+        setFines(prev => [...prev, msg]);
+        showToast(msg);
+      } else if (status === "present") {
+        // fine was removed — check if we had one listed
+        setFines(prev => prev.filter(f => !f.includes(rows.find(r => r.id === memberId)?.name ?? "___")));
+      }
+      setRows(prev => prev.map(r => r.id === memberId ? { ...r, dirty: false } : r));
+    } catch (e) {
+      showToast(e.message || "Failed to save", "error");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const presentCount = rows?.filter(r => r.status === "present").length ?? 0;
+  const absentCount  = rows?.filter(r => r.status === "absent").length ?? 0;
+  const apologyCount = rows?.filter(r => r.status === "apology").length ?? 0;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1100, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()}
+        style={{ background: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+
+        {/* Header */}
+        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #F0EEE8" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Meeting Attendance</div>
+              <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{meeting.date} · {meeting.location}</div>
+            </div>
+            <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          </div>
+          {rows && (
+            <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
+              {[["Present", presentCount, "#2E7D32", "#E8F5E9"], ["Apology", apologyCount, "#F57F17", "#FFF8E1"], ["Absent", absentCount, "#C62828", "#FFEBEE"]].map(([l, c, tc, bg]) => (
+                <div key={l} style={{ flex: 1, background: bg, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: tc }}>{c}</div>
+                  <div style={{ fontSize: 9, color: tc, opacity: 0.8 }}>{l.toUpperCase()}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Auto-fines log */}
+        {fines.length > 0 && (
+          <div style={{ margin: "0 16px", marginTop: 12, background: "#FFF8E1", borderRadius: 10, padding: "10px 14px", border: "1px solid #FFE082" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#F57F17", letterSpacing: 0.5, marginBottom: 6 }}>AUTO-FINES GENERATED</div>
+            {fines.map((f, i) => <div key={i} style={{ fontSize: 11, color: "#555", marginBottom: 2 }}>⚡ {f}</div>)}
+          </div>
+        )}
+
+        {/* Member list */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px 24px" }}>
+          {!rows ? (
+            <div style={{ padding: 32, textAlign: "center" }}><Spinner /></div>
+          ) : rows.map(r => (
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #F5F4F0" }}>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                {r.name?.charAt(0)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                <div style={{ fontSize: 10, color: "#999" }}>{r.role}</div>
+              </div>
+              {saving === r.id ? (
+                <div style={{ width: 18, height: 18 }}><Spinner /></div>
+              ) : (
+                <div style={{ display: "flex", gap: 4 }}>
+                  {STATUS_OPTS.map(opt => (
+                    <button key={opt.value} onClick={() => handleChange(r.id, opt.value)} style={{
+                      padding: "5px 10px", borderRadius: 8, border: "2px solid", fontSize: 10, fontWeight: 600, cursor: "pointer", transition: "all 0.12s",
+                      borderColor: r.status === opt.value ? opt.color : "#ECEAE4",
+                      background:  r.status === opt.value ? opt.bg : "#fff",
+                      color:       r.status === opt.value ? opt.color : "#BBB",
+                    }}>{opt.label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: "12px 24px 28px", borderTop: "1px solid #F0EEE8" }}>
+          <button className="btn" onClick={onClose}
+            style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700 }}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Annual Report Page ────────────────────────────────────────────────────────
+
+function AnnualReportPage({ report, loading, year, setYear }) {
+  const years = Array.from({ length: 4 }, (_, i) => String(now.getFullYear() - i));
+
+  const handlePrint = () => {
+    const el = document.getElementById("annual-report-content");
+    const win = window.open("", "_blank");
+    win.document.write(`<!DOCTYPE html><html><head><title>Kabazim Reloded — ${year} Annual Report</title>
+    <style>
+      body { font-family: system-ui, sans-serif; color: #1A1A1A; padding: 32px; max-width: 900px; margin: 0 auto; }
+      h1 { font-size: 24px; margin-bottom: 4px; }
+      .sub { color: #999; font-size: 13px; margin-bottom: 32px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 32px; font-size: 12px; }
+      th { text-align: left; padding: 8px 12px; background: #F7F6F2; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+      td { padding: 9px 12px; border-bottom: 1px solid #F0EEE8; }
+      .section { font-size: 15px; font-weight: 700; margin: 24px 0 12px; }
+      .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+      .stat { background: #F7F6F2; border-radius: 8px; padding: 16px; }
+      .stat-value { font-size: 22px; font-weight: 700; }
+      .stat-label { font-size: 10px; color: #999; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+      @media print { body { padding: 16px; } }
+    </style></head><body>${el.innerHTML}</body></html>`);
+    win.document.close();
+    win.print();
+  };
+
+  const topContributors = report?.members?.slice(0, 3) ?? [];
+
+  return (
+    <div style={{ padding: 20 }} className="fade-up">
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Annual Report</div>
+          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Kabazim Reloded · {year} Summary</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", background: "#ECEAE4", borderRadius: 10, padding: 3 }}>
+            {years.map(y => (
+              <button key={y} onClick={() => setYear(y)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: year === y ? "#1A1A1A" : "transparent", color: year === y ? "#fff" : "#888" }}>{y}</button>
+            ))}
+          </div>
+          <button className="btn" onClick={handlePrint}
+            style={{ background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 12, fontWeight: 700 }}>
+            ⬇ Export PDF
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {[1,2,3].map(k => <Skeleton key={k} h={100} r={16} />)}
+        </div>
+      ) : !report ? (
+        <EmptyState type="activity" title="No data available" subtitle={`No records found for ${year}.`} />
+      ) : (
+        <div id="annual-report-content">
+          {/* Hidden print header */}
+          <div className="print-only" style={{ display: "none" }}>
+            <h1>Kabazim Reloded — {year} Annual Report</h1>
+            <div className="sub">Generated {new Date().toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" })}</div>
+          </div>
+
+          {/* Summary cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
+            {[
+              ["Total Collected", fmt(report.totals.grand),       "#1C1C1E", "#F7F6F2"],
+              ["Contributions",   fmt(report.totals.contributions),"#E8F5E9", "#2E7D32"],
+              ["Fines & Lateness",fmt(report.totals.fines + report.totals.lateness), "#FFF8E1", "#F57F17"],
+              ["Meetings Held",   report.meetings?.total ?? 0,    "#E8F0FE", "#1565C0"],
+            ].map(([label, value, bg, color]) => (
+              <div key={label} style={{ background: bg, borderRadius: 16, padding: 18 }}>
+                <div style={{ fontSize: 11, color, opacity: 0.7, letterSpacing: 0.5, marginBottom: 6 }}>{label.toUpperCase()}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color, letterSpacing: "-0.5px" }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Top contributors */}
+          {topContributors.length > 0 && (
+            <div style={{ background: "#1C1C1E", borderRadius: 16, padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: "#555", letterSpacing: 1, marginBottom: 14 }}>TOP CONTRIBUTORS</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {topContributors.map((m, i) => (
+                  <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: ["#C8A97E","#9E9E9E","#A07850"][i], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                      {i + 1}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#F7F6F2" }}>{m.name}</div>
+                      <div style={{ fontSize: 10, color: "#555", marginTop: 1 }}>{m.meetings_total ?? 0} meetings · {m.shares} share{m.shares > 1 ? "s" : ""}</div>
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#C8A97E" }}>{fmt(m.contributions)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Monthly breakdown */}
+          <div style={{ background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", marginBottom: 20 }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #F5F4F0", fontSize: 13, fontWeight: 700, color: "#1A1A1A" }}>Monthly Breakdown</div>
+            {report.monthly.length === 0 ? (
+              <EmptyState type="activity" title="No monthly data" subtitle="No confirmed contributions recorded." />
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#F7F6F2" }}>
+                      {["Month", "Contributions", "Fines", "Lateness", "Total"].map(h => (
+                        <th key={h} style={{ padding: "10px 16px", textAlign: h === "Month" ? "left" : "right", fontSize: 10, color: "#999", letterSpacing: 0.5, fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.monthly.map(r => (
+                      <tr key={r.month} style={{ borderBottom: "1px solid #F9F8F5" }}>
+                        <td style={{ padding: "11px 16px", fontWeight: 500, color: "#1A1A1A" }}>{r.month}</td>
+                        <td style={{ padding: "11px 16px", textAlign: "right", color: "#2E7D32" }}>{fmt(r.contributions)}</td>
+                        <td style={{ padding: "11px 16px", textAlign: "right", color: r.fines > 0 ? "#C62828" : "#CCC" }}>{r.fines > 0 ? fmt(r.fines) : "—"}</td>
+                        <td style={{ padding: "11px 16px", textAlign: "right", color: r.lateness > 0 ? "#E65100" : "#CCC" }}>{r.lateness > 0 ? fmt(r.lateness) : "—"}</td>
+                        <td style={{ padding: "11px 16px", textAlign: "right", fontWeight: 700, color: "#1A1A1A" }}>{fmt(r.contributions + r.fines + r.lateness)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Member breakdown */}
+          <div style={{ background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #F5F4F0", fontSize: 13, fontWeight: 700, color: "#1A1A1A" }}>Member Summary</div>
+            {report.members.length === 0 ? (
+              <EmptyState type="members" title="No member data" subtitle="No confirmed records for this year." />
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#F7F6F2" }}>
+                      {["Member","Contributions","Fines","Lateness","Meetings","Attendance"].map(h => (
+                        <th key={h} style={{ padding: "10px 16px", textAlign: h === "Member" ? "left" : "right", fontSize: 10, color: "#999", letterSpacing: 0.5, fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.members.map((m, i) => {
+                      const attRate = m.meetings_total > 0 ? Math.round((m.present / m.meetings_total) * 100) : null;
+                      return (
+                        <tr key={m.id} style={{ borderBottom: "1px solid #F9F8F5", background: i % 2 === 0 ? "#fff" : "#FDFCFA" }}>
+                          <td style={{ padding: "11px 16px" }}>
+                            <div style={{ fontWeight: 600, color: "#1A1A1A" }}>{m.name}</div>
+                            <div style={{ fontSize: 10, color: "#999" }}>{m.shares} share{m.shares > 1 ? "s" : ""}</div>
+                          </td>
+                          <td style={{ padding: "11px 16px", textAlign: "right", color: m.contributions > 0 ? "#2E7D32" : "#CCC", fontWeight: 600 }}>{m.contributions > 0 ? fmt(m.contributions) : "—"}</td>
+                          <td style={{ padding: "11px 16px", textAlign: "right", color: m.fines > 0 ? "#C62828" : "#CCC" }}>{m.fines > 0 ? fmt(m.fines) : "—"}</td>
+                          <td style={{ padding: "11px 16px", textAlign: "right", color: m.lateness > 0 ? "#E65100" : "#CCC" }}>{m.lateness > 0 ? fmt(m.lateness) : "—"}</td>
+                          <td style={{ padding: "11px 16px", textAlign: "right", color: "#555" }}>{m.present ?? 0}/{m.meetings_total ?? 0}</td>
+                          <td style={{ padding: "11px 16px", textAlign: "right" }}>
+                            {attRate !== null ? (
+                              <span style={{ padding: "3px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: attRate >= 80 ? "#E8F5E9" : attRate >= 50 ? "#FFF8E1" : "#FFEBEE", color: attRate >= 80 ? "#2E7D32" : attRate >= 50 ? "#F57F17" : "#C62828" }}>{attRate}%</span>
+                            ) : <span style={{ color: "#CCC" }}>—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
