@@ -125,7 +125,13 @@ function ChamaFlow({ onLogout }) {
 
   // ── Navigation & layout ──
   const [page,     setPage]     = useState("dashboard");
-  const [viewMode, setViewMode] = useState("mobile");
+  const [viewMode, setViewMode] = useState(() => window.innerWidth >= 640 ? "desktop" : "mobile");
+
+  useEffect(() => {
+    const onResize = () => setViewMode(window.innerWidth >= 640 ? "desktop" : "mobile");
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // ── Shared data ──
   const [members,       setMembers]       = useState([]);
@@ -357,132 +363,123 @@ function ChamaFlow({ onLogout }) {
         button { cursor:pointer; font-family:inherit; }
       `}</style>
 
-      {/* ── Top bar ── */}
-      <div style={{ background: "#1A1A1A", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "#444", fontSize: 11, letterSpacing: 1 }}>KABAZIM RELODED</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: apiOnline === null ? "#666" : apiOnline ? "#4CAF50" : "#EF5350" }} />
-            <span style={{ fontSize: 10, color: apiOnline ? "#4CAF50" : "#EF5350" }}>
-              {apiOnline === null ? "Connecting…" : apiOnline ? "Connected" : "API offline"}
-            </span>
+      {/* ── Top bar (desktop only) ── */}
+      {viewMode === "desktop" && (
+        <div style={{ background: "#1A1A1A", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ color: "#444", fontSize: 11, letterSpacing: 1 }}>KABAZIM RELODED</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: apiOnline === null ? "#666" : apiOnline ? "#4CAF50" : "#EF5350" }} />
+              <span style={{ fontSize: 10, color: apiOnline ? "#4CAF50" : "#EF5350" }}>
+                {apiOnline === null ? "Connecting…" : apiOnline ? "Connected" : "API offline"}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {currentUser && (
+              <span style={{ fontSize: 11, color: "#666" }}>{currentUser.name} · <span style={{ color: "#C8A97E" }}>{role}</span></span>
+            )}
+            <button onClick={onLogout} style={{ background: "#2A2A2A", border: "none", color: "#999", borderRadius: 8, padding: "5px 12px", fontSize: 11, cursor: "pointer" }}>Sign out</button>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {currentUser && (
-            <span style={{ fontSize: 11, color: "#666" }}>{currentUser.name} · <span style={{ color: "#C8A97E" }}>{role}</span></span>
-          )}
-          {/* Layout switcher */}
-          <div style={{ display: "flex", background: "#2A2A2A", borderRadius: 8, padding: 2 }}>
-            {[["mobile","📱"],["tablet","💻"]].map(([v,e]) => (
-              <button key={v} onClick={() => setViewMode(v)} style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, background: viewMode === v ? "#F0EDE6" : "transparent", color: viewMode === v ? "#1A1A1A" : "#555", transition: "all 0.15s", cursor: "pointer" }}>{e}</button>
-            ))}
-          </div>
-          <button onClick={onLogout} style={{ background: "#2A2A2A", border: "none", color: "#999", borderRadius: 8, padding: "5px 12px", fontSize: 11, cursor: "pointer" }}>Sign out</button>
-        </div>
-      </div>
+      )}
 
       {/* ── App shell ── */}
-      <div style={{ display: "flex", justifyContent: "center", padding: viewMode === "tablet" ? 24 : 0, minHeight: "calc(100vh - 46px)" }}>
-        <div style={{
-          width: viewMode === "mobile" ? "100%" : 940,
-          maxWidth: viewMode === "mobile" ? 430 : 940,
-          background: "#F7F6F2",
-          borderRadius: viewMode === "tablet" ? 24 : 0,
-          overflow: "hidden",
-          display: viewMode === "tablet" ? "flex" : "block",
-          boxShadow: viewMode === "tablet" ? "0 24px 80px rgba(0,0,0,0.2)" : "none",
-          minHeight: viewMode === "tablet" ? "calc(100vh - 94px)" : "calc(100vh - 46px)",
-        }}>
-          {/* Tablet sidebar */}
-          {viewMode === "tablet" && (
-            <div style={{ width: 224, background: "#1C1C1E", display: "flex", flexDirection: "column", padding: "32px 0", flexShrink: 0 }}>
-              <div style={{ padding: "0 24px 28px" }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>Kabazim Reloded</div>
-                <div style={{ fontSize: 10, color: "#555", marginTop: 2, letterSpacing: 1 }}>SAVINGS PLATFORM</div>
+      <div style={{ display: "flex", width: "100%", minHeight: viewMode === "desktop" ? "calc(100vh - 46px)" : "100vh", background: "#F7F6F2" }}>
+
+        {/* Desktop sidebar */}
+        {viewMode === "desktop" && (
+          <div style={{ width: 240, minWidth: 240, background: "#1C1C1E", display: "flex", flexDirection: "column", padding: "32px 0", position: "sticky", top: 0, height: "calc(100vh - 46px)", overflowY: "auto" }}>
+            <div style={{ padding: "0 24px 28px" }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>Kabazim Reloded</div>
+              <div style={{ fontSize: 10, color: "#555", marginTop: 2, letterSpacing: 1 }}>SAVINGS PLATFORM</div>
+            </div>
+            <div style={{ padding: "0 12px", flex: 1 }}>
+              {NAV_ITEMS.filter(n => isAdmin || !["record","members"].includes(n.id)).map(item => (
+                <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
+                  display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 14px",
+                  borderRadius: 10, border: "none", marginBottom: 2, textAlign: "left", transition: "all 0.15s",
+                  background: page === item.id ? "rgba(200,169,126,0.15)" : "transparent",
+                  color: page === item.id ? "#F0EDE6" : "#666",
+                  fontWeight: page === item.id ? 600 : 400, fontSize: 13, cursor: "pointer",
+                }}>
+                  <span style={{ fontSize: 16, opacity: page === item.id ? 1 : 0.6 }}>{item.icon}</span>
+                  {item.label}
+                  {page === item.id && <div style={{ marginLeft: "auto", width: 4, height: 4, borderRadius: "50%", background: "#C8A97E" }} />}
+                </button>
+              ))}
+            </div>
+            {currentUser && (
+              <div style={{ padding: "20px 16px 0" }}>
+                <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 14 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                    {currentUser.name?.charAt(0)}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#F0EDE6" }}>{currentUser.name}</div>
+                  <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>{role}</div>
+                </div>
               </div>
-              <div style={{ padding: "0 12px", flex: 1 }}>
-                {NAV_ITEMS.filter(n => isAdmin || !["record","members"].includes(n.id)).map(item => (
-                  <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
-                    display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 14px",
-                    borderRadius: 10, border: "none", marginBottom: 2, textAlign: "left", transition: "all 0.15s",
-                    background: page === item.id ? "rgba(240,237,230,0.1)" : "transparent",
-                    color: page === item.id ? "#F0EDE6" : "#555",
-                    fontWeight: page === item.id ? 600 : 400, fontSize: 13,
-                  }}>
-                    <span style={{ fontSize: 16 }}>{item.icon}</span>{item.label}
-                  </button>
-                ))}
+            )}
+          </div>
+        )}
+
+        {/* Main area */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+          {/* Mobile header */}
+          {viewMode === "mobile" && (
+            <div style={{ background: "#F7F6F2", padding: "14px 20px 10px", borderBottom: "1px solid #ECEAE4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#1A1A1A" }}>Kabazim Reloded</div>
+                <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5 }}>{role.toUpperCase()}</div>
               </div>
               {currentUser && (
-                <div style={{ padding: "20px 16px 0" }}>
-                  <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 14 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                      {currentUser.name?.charAt(0)}
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#F0EDE6" }}>{currentUser.name}</div>
-                    <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>{role}</div>
-                  </div>
+                <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>
+                  {currentUser.name?.charAt(0)}
                 </div>
               )}
             </div>
           )}
 
-          {/* Main area */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            {/* Mobile header */}
-            {viewMode === "mobile" && (
-              <div style={{ background: "#F7F6F2", padding: "14px 20px 10px", borderBottom: "1px solid #ECEAE4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: "#1A1A1A" }}>Kabazim Reloded</div>
-                  <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5 }}>{role.toUpperCase()}</div>
-                </div>
-                {currentUser && (
-                  <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>
-                    {currentUser.name?.charAt(0)}
-                  </div>
-                )}
+          {/* Page content */}
+          <div style={{ flex: 1, overflowY: "auto", padding: viewMode === "mobile" ? "0 0 80px" : 0 }}>
+            {!apiOnline && apiOnline !== null && (
+              <div style={{ margin: 20, background: "#FFF3E0", borderRadius: 14, padding: 16, borderLeft: "4px solid #FF9800" }}>
+                <div style={{ fontWeight: 700, color: "#E65100", marginBottom: 4 }}>API server is offline</div>
+                <div style={{ fontSize: 12, color: "#BF360C" }}>Run <code style={{ background: "#FFE0B2", padding: "1px 6px", borderRadius: 4 }}>node server.js</code> in the backend folder to start the API.</div>
               </div>
             )}
 
-            {/* Page content */}
-            <div style={{ flex: 1, overflowY: "auto", padding: viewMode === "tablet" ? "28px 32px" : "0 0 80px" }}>
-              {!apiOnline && apiOnline !== null && (
-                <div style={{ margin: 20, background: "#FFF3E0", borderRadius: 14, padding: 16, borderLeft: "4px solid #FF9800" }}>
-                  <div style={{ fontWeight: 700, color: "#E65100", marginBottom: 4 }}>API server is offline</div>
-                  <div style={{ fontSize: 12, color: "#BF360C" }}>Run <code style={{ background: "#FFE0B2", padding: "1px 6px", borderRadius: 4 }}>node server.js</code> in the backend folder to start the API.</div>
-                </div>
-              )}
-
-              {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} />}
+            <div style={{ maxWidth: viewMode === "desktop" ? 960 : "none", padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
+              {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} />}
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} selectStyle={selectStyle} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} showToast={showToast} onRefresh={loadMeetings} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
-              {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} />}
+              {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} />}
               {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} />}
             </div>
+          </div>
 
-            {/* Mobile bottom nav */}
-            {viewMode === "mobile" && (
-              <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#F7F6F2", borderTop: "1px solid #ECEAE4", display: "flex", padding: "8px 0 16px", zIndex: 100 }}>
-                {NAV_ITEMS.filter(n => isAdmin || !["record","members"].includes(n.id)).map(item => (
-                  <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
-                    flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                    border: "none", background: "transparent", padding: "4px 2px", borderRadius: 8,
-                    color: page === item.id ? "#1A1A1A" : "#AAAAAA", transition: "color 0.15s",
-                  }}>
-                    <span style={{ fontSize: 18 }}>{item.icon}</span>
-                    <span style={{ fontSize: 9, fontWeight: page === item.id ? 600 : 400 }}>{item.label}</span>
-                    {page === item.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#1A1A1A", marginTop: -1 }} />}
-                  </button>
-                ))}
-              </div>
+          {/* Mobile bottom nav */}
+          {viewMode === "mobile" && (
+            <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#F7F6F2", borderTop: "1px solid #ECEAE4", display: "flex", padding: "8px 0 16px", zIndex: 100 }}>
+              {NAV_ITEMS.filter(n => isAdmin || !["record","members"].includes(n.id)).map(item => (
+                <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
+                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                  border: "none", background: "transparent", padding: "4px 2px", borderRadius: 8,
+                  color: page === item.id ? "#1A1A1A" : "#AAAAAA", transition: "color 0.15s",
+                }}>
+                  <span style={{ fontSize: 18 }}>{item.icon}</span>
+                  <span style={{ fontSize: 9, fontWeight: page === item.id ? 600 : 400 }}>{item.label}</span>
+                  {page === item.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#1A1A1A", marginTop: -1 }} />}
+                </button>
+              ))}
+            </div>
             )}
           </div>
         </div>
-      </div>
 
       {/* Modals & Overlays */}
+
       {selectedMeeting && <PDFModal meeting={selectedMeeting} members={members} onClose={() => setSelectedMeeting(null)} />}
       {addMemberModal  && <AddMemberModal onClose={() => setAddMemberModal(false)} onAdd={handleAddMember} members={members} />}
       {editMember      && <EditMemberModal member={editMember} onClose={() => setEditMember(null)} onSave={handleEditMember} />}
@@ -500,9 +497,10 @@ function ChamaFlow({ onLogout }) {
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 
-function DashboardPage({ dashboard, loading, member, role, setPage }) {
+function DashboardPage({ dashboard, loading, member, role, setPage, viewMode }) {
+  const isDesktop = viewMode === "desktop";
   if (loading) return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: isDesktop ? 0 : 20 }}>
       <div style={{ marginBottom: 24 }}><Skeleton h={14} w={80} /><div style={{ marginTop: 8 }}><Skeleton h={28} w={200} /></div></div>
       <Skeleton h={130} r={20} />
       <div style={{ marginTop: 12 }}><Skeleton h={100} r={16} /></div>
@@ -515,8 +513,72 @@ function DashboardPage({ dashboard, loading, member, role, setPage }) {
   const isPaid          = dashboard?.contribution_status === "Paid";
   const pct             = Math.min((monthlyPaid / monthlyExpected) * 100, 100);
 
+  const heroCard = (
+    <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 24, marginBottom: 14, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(200,169,126,0.1)" }} />
+      <div style={{ fontSize: 11, color: "#666", letterSpacing: 1, marginBottom: 8 }}>TOTAL SAVINGS</div>
+      <div style={{ fontSize: 34, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-1px", fontFamily: "'DM Serif Display', serif" }}>{fmt(totalSavings)}</div>
+      <div style={{ marginTop: 16, display: "flex", gap: 16 }}>
+        {[["SHARES", member?.shares ?? 1], ["MONTHLY", fmt(monthlyExpected)], ["ROLE", role]].map(([k, v], i) => (
+          <div key={k} style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            {i > 0 && <div style={{ width: 1, height: 28, background: "#333" }} />}
+            <div>
+              <div style={{ fontSize: 9, color: "#555", letterSpacing: 0.5 }}>{k}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#C8A97E", marginTop: 2 }}>{v}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const monthlyCard = (
+    <div className="card" style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>{CURRENT_MONTH}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A" }}>{fmt(monthlyExpected)}</div>
+        </div>
+        <div style={{ padding: "6px 14px", borderRadius: 20, background: isPaid ? "#E8F5E9" : "#FFF3E0", color: isPaid ? "#2E7D32" : "#E65100", fontSize: 12, fontWeight: 600 }}>
+          {isPaid ? "✓ Paid" : "○ Pending"}
+        </div>
+      </div>
+      <div style={{ background: "#F0EEE8", borderRadius: 6, height: 8, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: isPaid ? "linear-gradient(90deg,#4CAF50,#66BB6A)" : "linear-gradient(90deg,#FF9800,#FFC107)", borderRadius: 6, transition: "width 1s ease" }} />
+      </div>
+      <div style={{ fontSize: 11, color: "#999", marginTop: 8 }}>
+        {isPaid ? `Paid ${fmt(monthlyPaid)}` : `${fmt(monthlyPaid)} of ${fmt(monthlyExpected)} paid · Due ${CURRENT_MONTH}`}
+      </div>
+    </div>
+  );
+
+  const activityCard = (
+    <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+      <div style={{ padding: "16px 20px 0", fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>Recent Activity</div>
+      {dashboard?.recent_contributions?.length > 0 ? (
+        <div style={{ padding: "12px 20px 20px" }}>
+          {dashboard.recent_contributions.map((c, i, arr) => {
+            const tm = TYPE_META[c.type] || TYPE_META.Contribution;
+            return (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? "1px solid #F5F4F0" : "none", marginBottom: i < arr.length - 1 ? 12 : 0 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.status === "Confirmed" ? "#4CAF50" : "#FF9800", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: "#333" }}>{c.type} — {c.month}</div>
+                  <div style={{ fontSize: 10, color: "#BBB", marginTop: 1 }}>{c.method} · {c.ref}</div>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: tm.text }}>{fmt(c.amount)}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState type="activity" title="No recent activity" subtitle="Your recent payments will show up here." />
+      )}
+    </div>
+  );
+
   return (
-    <div style={{ padding: 20 }} className="fade-up">
+    <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
       <div style={{ marginBottom: 22 }}>
         <div style={{ fontSize: 13, color: "#999" }}>Good morning,</div>
         <div style={{ fontSize: 24, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px", fontFamily: "'DM Serif Display', serif" }}>
@@ -524,76 +586,31 @@ function DashboardPage({ dashboard, loading, member, role, setPage }) {
         </div>
       </div>
 
-      {/* Hero card */}
-      <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 24, marginBottom: 14, position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(200,169,126,0.1)" }} />
-        <div style={{ fontSize: 11, color: "#666", letterSpacing: 1, marginBottom: 8 }}>TOTAL SAVINGS</div>
-        <div style={{ fontSize: 34, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-1px", fontFamily: "'DM Serif Display', serif" }}>{fmt(totalSavings)}</div>
-        <div style={{ marginTop: 16, display: "flex", gap: 16 }}>
-          {[
-            ["SHARES",  member?.shares ?? 1],
-            ["MONTHLY", fmt(monthlyExpected)],
-            ["ROLE",    role],
-          ].map(([k, v], i, arr) => (
-            <div key={k} style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              {i > 0 && <div style={{ width: 1, height: 28, background: "#333" }} />}
-              <div>
-                <div style={{ fontSize: 9, color: "#555", letterSpacing: 0.5 }}>{k}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#C8A97E", marginTop: 2 }}>{v}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Monthly status */}
-      <div className="card" style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      {isDesktop ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          {/* Left column */}
           <div>
-            <div style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>{CURRENT_MONTH}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A" }}>{fmt(monthlyExpected)}</div>
+            {heroCard}
+            {monthlyCard}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <QuickCard title="Contributions" sub="View all records" icon="◈" color="#E8F0FE" iconColor="#1565C0" onClick={() => setPage("contributions")} />
+              <QuickCard title="Meetings"      sub="View minutes"    icon="◉" color="#F3E5F5" iconColor="#6A1B9A" onClick={() => setPage("meetings")} />
+            </div>
           </div>
-          <div style={{ padding: "6px 14px", borderRadius: 20, background: isPaid ? "#E8F5E9" : "#FFF3E0", color: isPaid ? "#2E7D32" : "#E65100", fontSize: 12, fontWeight: 600 }}>
-            {isPaid ? "✓ Paid" : "○ Pending"}
+          {/* Right column */}
+          <div>{activityCard}</div>
+        </div>
+      ) : (
+        <>
+          {heroCard}
+          {monthlyCard}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <QuickCard title="Contribution History" sub="View all records" icon="◈" color="#E8F0FE" iconColor="#1565C0" onClick={() => setPage("contributions")} />
+            <QuickCard title="Previous Meetings"    sub="View minutes"    icon="◉" color="#F3E5F5" iconColor="#6A1B9A" onClick={() => setPage("meetings")} />
           </div>
-        </div>
-        <div style={{ background: "#F0EEE8", borderRadius: 6, height: 8, overflow: "hidden" }}>
-          <div style={{ width: `${pct}%`, height: "100%", background: isPaid ? "linear-gradient(90deg,#4CAF50,#66BB6A)" : "linear-gradient(90deg,#FF9800,#FFC107)", borderRadius: 6, transition: "width 1s ease" }} />
-        </div>
-        <div style={{ fontSize: 11, color: "#999", marginTop: 8 }}>
-          {isPaid ? `Paid ${fmt(monthlyPaid)}` : `${fmt(monthlyPaid)} of ${fmt(monthlyExpected)} paid · Due ${CURRENT_MONTH}`}
-        </div>
-      </div>
-
-      {/* Quick links */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <QuickCard title="Contribution History" sub="View all records" icon="◈" color="#E8F0FE" iconColor="#1565C0" onClick={() => setPage("contributions")} />
-        <QuickCard title="Previous Meetings"    sub="View minutes"    icon="◉" color="#F3E5F5" iconColor="#6A1B9A" onClick={() => setPage("meetings")} />
-      </div>
-
-      {/* Recent contributions */}
-      <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px 0", fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>Recent Activity</div>
-        {dashboard?.recent_contributions?.length > 0 ? (
-          <div style={{ padding: "12px 20px 20px" }}>
-            {dashboard.recent_contributions.map((c, i, arr) => {
-              const tm = TYPE_META[c.type] || TYPE_META.Contribution;
-              return (
-                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? "1px solid #F5F4F0" : "none", marginBottom: i < arr.length - 1 ? 12 : 0 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.status === "Confirmed" ? "#4CAF50" : "#FF9800", flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: "#333" }}>{c.type} — {c.month}</div>
-                    <div style={{ fontSize: 10, color: "#BBB", marginTop: 1 }}>{c.method} · {c.ref}</div>
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: tm.text }}>{fmt(c.amount)}</div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState type="activity" title="No recent activity" subtitle="Your recent payments will show up here." />
-        )}
-      </div>
+          {activityCard}
+        </>
+      )}
     </div>
   );
 }
@@ -1543,8 +1560,9 @@ function EmptyState({ type = "contributions", title, subtitle, action, onAction 
 
 // ── Members Page ──────────────────────────────────────────────────────────────
 
-function MembersPage({ members, loading, onAdd, onToggle, onEdit }) {
+function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode }) {
   const active = members.filter(m => m.active).length;
+  const isDesktop = viewMode === "desktop";
   return (
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
@@ -1565,10 +1583,10 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit }) {
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3,4].map(k => <Skeleton key={k} h={80} r={14} />)}</div>
+        <div style={{ display: isDesktop ? "grid" : "flex", gridTemplateColumns: isDesktop ? "1fr 1fr" : undefined, flexDirection: "column", gap: 10 }}>{[1,2,3,4].map(k => <Skeleton key={k} h={80} r={14} />)}</div>
       ) : members.length === 0 ? (
         <EmptyState type="members" title="No members yet" subtitle="Add your first member to get started." action="+ Add Member" onAction={onAdd} />
-      ) : members.map((m, i) => (
+      ) : <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: isDesktop ? "1fr 1fr" : undefined, gap: 10 }}>{members.map((m, i) => (
         <div key={m.id} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, boxShadow: "0 1px 6px rgba(0,0,0,0.05)", animation: `fadeUp 0.25s ease ${Math.min(i,10)*0.04}s both`, opacity: m.active ? 1 : 0.6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: "50%", background: m.role === "Chairman" ? "linear-gradient(135deg,#FFD54F,#FF8F00)" : m.role === "Secretary" ? "linear-gradient(135deg,#81C784,#2E7D32)" : "linear-gradient(135deg,#90CAF9,#1565C0)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
@@ -1591,7 +1609,7 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit }) {
             </button>
           </div>
         </div>
-      ))}
+      ))}</div>}
     </div>
   );
 }
