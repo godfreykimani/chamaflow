@@ -85,6 +85,9 @@ export const updateContribution = (id, body) =>
 export const deleteContribution = (id) =>
   request(`/contributions/${id}`, { method: "DELETE" });
 
+export const bulkImportContributions = (body) =>
+  request("/contributions/bulk", { method: "POST", body: JSON.stringify(body) });
+
 export const uploadProof = (id, file) => {
   const form = new FormData();
   form.append("proof", file);

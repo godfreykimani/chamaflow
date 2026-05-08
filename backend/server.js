@@ -304,6 +304,29 @@ app.delete("/api/contributions/:id", requireAdmin, (req, res) => {
   ok(res,{message:"Deleted"});
 });
 
+app.post("/api/contributions/bulk", requireAdmin, (req, res) => {
+  const { month, entries } = req.body;
+  if (!month || !Array.isArray(entries) || entries.length === 0)
+    return fail(res, "month and entries[] required");
+
+  const insert = db.prepare(
+    "INSERT INTO contributions (member_id,type,month,amount,method,ref,status,recorded_by) VALUES (?,?,?,?,?,?,?,?)"
+  );
+
+  const results = [];
+  const bulkTx = db.transaction(() => {
+    for (const e of entries) {
+      const { member_id, type = "Contribution", amount, method = "M-Pesa", ref = "", status = "Pending" } = e;
+      if (!member_id || !amount) continue;
+      const r = insert.run(member_id, type, month, parseFloat(amount), method, ref, status, req.user.id);
+      results.push(r.lastInsertRowid);
+    }
+  });
+  bulkTx();
+  audit(req.user.id, "BULK_IMPORT", `contributions`, { month, count: results.length });
+  ok(res, { inserted: results.length, ids: results }, 201);
+});
+
 const storage = multer.diskStorage({ destination:(_,__,cb)=>cb(null,UPLOADS), filename:(_,f,cb)=>cb(null,`${uuidv4()}${path.extname(f.originalname)}`) });
 const upload  = multer({ storage, limits:{fileSize:5*1024*1024} });
 

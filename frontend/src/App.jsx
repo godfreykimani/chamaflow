@@ -262,6 +262,23 @@ function ChamaFlow({ onLogout }) {
     }
   };
 
+  // ── Bulk import contributions ──
+  const handleBulkImport = async (month, entries) => {
+    try {
+      setLoad("record", true);
+      const result = await api.bulkImportContributions({ month, entries });
+      showToast(`${result.inserted} contributions imported for ${month}`);
+      const s = await api.getMonthlySummary(CURRENT_MONTH);
+      setMonthlySummary(s);
+      return true;
+    } catch (e) {
+      showToast(e.message || "Bulk import failed", "error");
+      return false;
+    } finally {
+      setLoad("record", false);
+    }
+  };
+
   // ── Add member ──
   const handleAddMember = async (formData) => {
     try {
@@ -440,7 +457,7 @@ function ChamaFlow({ onLogout }) {
               {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} />}
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} selectStyle={selectStyle} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} showToast={showToast} onRefresh={loadMeetings} />}
-              {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} selectStyle={selectStyle} />}
+              {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} />}
               {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} />}
             </div>
@@ -1146,7 +1163,9 @@ function EndorsementModal({ meeting, currentUser, onClose, onEndorse }) {
 
 // ── Record Contribution Page ───────────────────────────────────────────────────
 
-function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSubmit, selectStyle }) {
+function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSubmit, onBulkImport, selectStyle }) {
+  const [tab, setTab] = useState("single");
+
   const expected    = summary?.totalExpected ?? 130000;
   const paid        = summary?.totalPaid ?? 0;
   const outstanding = expected - paid;
@@ -1163,6 +1182,19 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
         <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Record Contribution</div>
         <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{CURRENT_MONTH}</div>
       </div>
+
+      {/* Tab toggle */}
+      <div style={{ display: "flex", background: "#F0EFEA", borderRadius: 12, padding: 4, marginBottom: 20, gap: 4 }}>
+        {[["single","Single Entry"],["bulk","Bulk Import"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s", background: tab === id ? "#1A1A1A" : "transparent", color: tab === id ? "#F7F6F2" : "#999" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "bulk" && <BulkImportTab members={members} loading={loading} onBulkImport={onBulkImport} selectStyle={selectStyle} />}
+      {tab !== "bulk" && <>
+
 
       {/* Monthly summary card */}
       <div style={{ background: "#1C1C1E", borderRadius: 16, padding: 20, marginBottom: 20 }}>
@@ -1276,6 +1308,140 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
           })}
         </div>
       </div>
+      </>}
+    </div>
+  );
+}
+
+// ── Bulk Import Tab ───────────────────────────────────────────────────────────
+
+function BulkImportTab({ members, loading, onBulkImport, selectStyle }) {
+  const activeMembers = members.filter(m => m.active);
+
+  const monthOptions = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    return d.toLocaleString("en-GB", { month: "long" }) + " " + d.getFullYear();
+  });
+
+  const [month, setMonth]         = useState(CURRENT_MONTH);
+  const [allConfirmed, setAllConf] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone]           = useState(false);
+
+  const initRows = () =>
+    activeMembers.map(m => ({
+      member_id: m.id,
+      name: m.name,
+      shares: m.shares,
+      amount: String(m.shares * 5000),
+      method: "M-Pesa",
+      ref: "",
+      status: "Confirmed",
+      skip: false,
+    }));
+
+  const [rows, setRows] = useState(initRows);
+
+  const setRow = (idx, key, val) =>
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r));
+
+  const toggleAllConfirmed = (val) => {
+    setAllConf(val);
+    setRows(prev => prev.map(r => ({ ...r, status: val ? "Confirmed" : "Pending" })));
+  };
+
+  const handleSubmit = async () => {
+    const entries = rows
+      .filter(r => !r.skip && r.amount)
+      .map(({ member_id, amount, method, ref, status }) => ({ member_id, amount, method, ref, status }));
+    if (entries.length === 0) return;
+    setSubmitting(true);
+    const ok = await onBulkImport(month, entries);
+    setSubmitting(false);
+    if (ok) {
+      setDone(true);
+      setRows(initRows());
+      setAllConf(false);
+    }
+  };
+
+  const toImport = rows.filter(r => !r.skip).length;
+
+  return (
+    <div>
+      {done && (
+        <div style={{ background: "#E8F5E9", border: "1px solid #A5D6A7", borderRadius: 12, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: "#2E7D32", fontWeight: 600 }}>
+          ✓ Import successful! Records saved.
+          <span onClick={() => setDone(false)} style={{ float: "right", cursor: "pointer", fontWeight: 400 }}>Dismiss</span>
+        </div>
+      )}
+
+      {/* Month + controls */}
+      <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+        <Label text="MONTH TO IMPORT">
+          <select value={month} onChange={e => setMonth(e.target.value)} style={{ ...selectStyle, width: "100%" }}>
+            {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </Label>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+          <div onClick={() => toggleAllConfirmed(!allConfirmed)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: allConfirmed ? "#1A1A1A" : "#CCC", background: allConfirmed ? "#1A1A1A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+            {allConfirmed && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
+          </div>
+          <div style={{ fontSize: 13, color: "#555" }}>Mark all as Confirmed</div>
+        </div>
+      </div>
+
+      {/* Member rows */}
+      <div style={{ background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", marginBottom: 16 }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid #F5F4F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A1A1A" }}>Members ({toImport} to import)</div>
+          <div style={{ fontSize: 11, color: "#999" }}>Uncheck to skip a member</div>
+        </div>
+
+        {rows.map((r, idx) => (
+          <div key={r.member_id} style={{ padding: "14px 16px", borderBottom: "1px solid #F9F8F5", opacity: r.skip ? 0.4 : 1, transition: "opacity 0.15s" }}>
+            {/* Row header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: r.skip ? 0 : 12 }}>
+              <div onClick={() => setRow(idx, "skip", !r.skip)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: r.skip ? "#CCC" : "#1A1A1A", background: r.skip ? "transparent" : "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                {!r.skip && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
+              </div>
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#F0EFEA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#555", flexShrink: 0 }}>
+                {r.name.charAt(0)}
+              </div>
+              <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>{r.name}</div>
+              <div style={{ fontSize: 11, color: "#999" }}>{r.shares} share{r.shares > 1 ? "s" : ""}</div>
+            </div>
+
+            {!r.skip && (
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 2fr", gap: 8, paddingLeft: 30 }}>
+                <div>
+                  <div style={{ fontSize: 9, color: "#999", marginBottom: 4 }}>AMOUNT (KES)</div>
+                  <input type="number" value={r.amount} onChange={e => setRow(idx, "amount", e.target.value)}
+                    style={{ ...selectStyle, width: "100%", paddingRight: 8, fontSize: 12 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: "#999", marginBottom: 4 }}>METHOD</div>
+                  <select value={r.method} onChange={e => setRow(idx, "method", e.target.value)} style={{ ...selectStyle, width: "100%", fontSize: 12 }}>
+                    <option>M-Pesa</option>
+                    <option>Bank Slip</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: "#999", marginBottom: 4 }}>REFERENCE</div>
+                  <input placeholder="Ref…" value={r.ref} onChange={e => setRow(idx, "ref", e.target.value)}
+                    style={{ ...selectStyle, width: "100%", paddingRight: 8, fontSize: 12 }} />
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button className="btn" onClick={handleSubmit} disabled={submitting || loading || toImport === 0}
+        style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        {submitting ? <><Spinner /> Importing…</> : `Import ${toImport} contributions for ${month}`}
+      </button>
     </div>
   );
 }
