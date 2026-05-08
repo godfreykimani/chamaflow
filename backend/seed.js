@@ -16,13 +16,19 @@ db.pragma("foreign_keys = ON");
 
 console.log("🌱  Seeding ChamaFlow database…\n");
 
+// ─── Block --force in production to protect live data ────────────────────────
+
+if (process.argv.includes("--force") && process.env.NODE_ENV === "production") {
+  console.error("❌  --force is blocked in production (NODE_ENV=production). Data is safe.");
+  process.exit(1);
+}
+
 // ─── Skip if data already exists ─────────────────────────────────────────────
 
 try {
   const existing = db.prepare("SELECT COUNT(*) as c FROM members").get();
   if (existing.c > 0) {
     console.log(`✅  Database already has ${existing.c} members — skipping seed to preserve live data.`);
-    console.log("    Run with --force to wipe and reseed: node seed.js --force\n");
     if (!process.argv.includes("--force")) { db.close(); process.exit(0); }
     console.log("⚠️   --force flag detected — wiping and reseeding…\n");
   }
