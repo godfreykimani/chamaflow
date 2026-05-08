@@ -572,24 +572,28 @@ function DashboardPage({ dashboard, loading, member, role, setPage }) {
       </div>
 
       {/* Recent contributions */}
-      {dashboard?.recent_contributions?.length > 0 && (
-        <div style={{ background: "#fff", borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Recent Activity</div>
-          {dashboard.recent_contributions.map((c, i, arr) => {
-            const tm = TYPE_META[c.type] || TYPE_META.Contribution;
-            return (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? "1px solid #F5F4F0" : "none", marginBottom: i < arr.length - 1 ? 12 : 0 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.status === "Confirmed" ? "#4CAF50" : "#FF9800", flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, color: "#333" }}>{c.type} — {c.month}</div>
-                  <div style={{ fontSize: 10, color: "#BBB", marginTop: 1 }}>{c.method} · {c.ref}</div>
+      <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px 0", fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>Recent Activity</div>
+        {dashboard?.recent_contributions?.length > 0 ? (
+          <div style={{ padding: "12px 20px 20px" }}>
+            {dashboard.recent_contributions.map((c, i, arr) => {
+              const tm = TYPE_META[c.type] || TYPE_META.Contribution;
+              return (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? "1px solid #F5F4F0" : "none", marginBottom: i < arr.length - 1 ? 12 : 0 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.status === "Confirmed" ? "#4CAF50" : "#FF9800", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, color: "#333" }}>{c.type} — {c.month}</div>
+                    <div style={{ fontSize: 10, color: "#BBB", marginTop: 1 }}>{c.method} · {c.ref}</div>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: tm.text }}>{fmt(c.amount)}</div>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: tm.text }}>{fmt(c.amount)}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState type="activity" title="No recent activity" subtitle="Your recent payments will show up here." />
+        )}
+      </div>
     </div>
   );
 }
@@ -691,10 +695,13 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
           {[1,2,3].map(k => <Skeleton key={k} h={100} r={14} />)}
         </div>
       ) : contributions.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "48px 0", color: "#CCC" }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>◌</div>
-          <div style={{ fontSize: 14, fontWeight: 500 }}>No records match your filters</div>
-        </div>
+        <EmptyState
+          type="contributions"
+          title="No contributions found"
+          subtitle={filterMember !== "All" || filterStatus !== "All" || filterType !== "All"
+            ? "Try adjusting your filters to see more records."
+            : "No payments have been recorded yet for this period."}
+        />
       ) : (
         <div style={{ position: "relative" }}>
           <div style={{ position: "absolute", left: 19, top: 0, bottom: 0, width: 2, background: "#ECEAE4" }} />
@@ -918,6 +925,12 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
       {/* Meeting cards — newest first */}
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{[1,2,3].map(k => <Skeleton key={k} h={160} r={16} />)}</div>
+      ) : meetings.length === 0 ? (
+        <EmptyState
+          type="meetings"
+          title="No meetings yet"
+          subtitle="Meeting records will appear here once they are created. Use the AI Recorder to capture and transcribe your first meeting."
+        />
       ) : [...meetings]
           .sort((a, b) => new Date(b.date) - new Date(a.date))
           .map((m, i) => {
@@ -1288,6 +1301,8 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
         <div style={{ maxHeight: 400, overflowY: "auto" }}>
           {loading ? (
             <div style={{ padding: 20 }}><Skeleton h={40} /><div style={{ marginTop: 10 }}><Skeleton h={40} /></div></div>
+          ) : (summary?.rows ?? []).length === 0 ? (
+            <EmptyState type="contributions" title="No data for this month" subtitle="Contributions recorded this month will appear here." />
           ) : (summary?.rows ?? []).map((r, i) => {
             const bal = r.expected - r.paid_contrib;
             return (
@@ -1455,6 +1470,77 @@ function Label({ text, children }) {
   );
 }
 
+// ── Empty State ───────────────────────────────────────────────────────────────
+
+const EMPTY_ILLUSTRATIONS = {
+  contributions: (
+    <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="22" y="10" width="44" height="58" rx="6" stroke="#E0DDD6" strokeWidth="2.2"/>
+      <path d="M22 68 Q27.5 76 33 68 Q38.5 60 44 68 Q49.5 76 55 68 Q60.5 60 66 68" stroke="#E0DDD6" strokeWidth="2" strokeLinecap="round"/>
+      <line x1="32" y1="28" x2="56" y2="28" stroke="#E0DDD6" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="32" y1="37" x2="56" y2="37" stroke="#E0DDD6" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="32" y1="46" x2="46" y2="46" stroke="#E0DDD6" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="48" y1="46" x2="56" y2="46" stroke="#C8A97E" strokeWidth="1.8" strokeLinecap="round"/>
+      <circle cx="66" cy="22" r="10" fill="#F7F6F2" stroke="#E0DDD6" strokeWidth="1.5"/>
+      <line x1="66" y1="17" x2="66" y2="27" stroke="#C8A97E" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="61" y1="22" x2="71" y2="22" stroke="#C8A97E" strokeWidth="1.8" strokeLinecap="round"/>
+    </svg>
+  ),
+  meetings: (
+    <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="20" width="68" height="56" rx="10" stroke="#E0DDD6" strokeWidth="2.2"/>
+      <line x1="10" y1="35" x2="78" y2="35" stroke="#E0DDD6" strokeWidth="2"/>
+      <line x1="28" y1="10" x2="28" y2="24" stroke="#E0DDD6" strokeWidth="2.2" strokeLinecap="round"/>
+      <line x1="60" y1="10" x2="60" y2="24" stroke="#E0DDD6" strokeWidth="2.2" strokeLinecap="round"/>
+      <circle cx="26" cy="48" r="3.5" fill="#E0DDD6"/>
+      <circle cx="44" cy="48" r="3.5" fill="#C8A97E"/>
+      <circle cx="62" cy="48" r="3.5" fill="#E0DDD6"/>
+      <circle cx="26" cy="63" r="3.5" fill="#E0DDD6"/>
+      <circle cx="44" cy="63" r="3.5" fill="#E0DDD6"/>
+      <circle cx="62" cy="63" r="3.5" fill="#E0DDD6" opacity="0.4"/>
+    </svg>
+  ),
+  activity: (
+    <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <line x1="14" y1="68" x2="74" y2="68" stroke="#E0DDD6" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="14" y1="68" x2="14" y2="20" stroke="#E0DDD6" strokeWidth="1.8" strokeLinecap="round"/>
+      <rect x="20" y="52" width="10" height="16" rx="3" fill="#ECEAE4"/>
+      <rect x="34" y="40" width="10" height="28" rx="3" fill="#ECEAE4"/>
+      <rect x="48" y="46" width="10" height="22" rx="3" fill="#C8A97E" opacity="0.35"/>
+      <rect x="62" y="34" width="10" height="34" rx="3" fill="#ECEAE4"/>
+      <path d="M44 16 L45.4 20.6 L50.4 19.2 L46.8 23 L49.4 27.8 L44 25.2 L38.6 27.8 L41.2 23 L37.6 19.2 L42.6 20.6 Z" stroke="#C8A97E" strokeWidth="1.4" strokeLinejoin="round"/>
+    </svg>
+  ),
+  members: (
+    <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="44" cy="30" r="12" stroke="#C8A97E" strokeWidth="2"/>
+      <path d="M20 74 C20 58 30 50 44 50 C58 50 68 58 68 74" stroke="#C8A97E" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="18" cy="34" r="8" stroke="#E0DDD6" strokeWidth="1.8"/>
+      <path d="M6 68 C6 56 12 50 18 50 C22 50 27 52 30 56" stroke="#E0DDD6" strokeWidth="1.8" strokeLinecap="round"/>
+      <circle cx="70" cy="34" r="8" stroke="#E0DDD6" strokeWidth="1.8"/>
+      <path d="M82 68 C82 56 76 50 70 50 C66 50 61 52 58 56" stroke="#E0DDD6" strokeWidth="1.8" strokeLinecap="round"/>
+    </svg>
+  ),
+};
+
+function EmptyState({ type = "contributions", title, subtitle, action, onAction }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px", textAlign: "center", minHeight: 280 }}>
+      <div style={{ marginBottom: 20, opacity: 0.9 }}>
+        {EMPTY_ILLUSTRATIONS[type]}
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A", marginBottom: 6, letterSpacing: "-0.3px" }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 13, color: "#BBB", maxWidth: 240, lineHeight: 1.5 }}>{subtitle}</div>}
+      {action && onAction && (
+        <button className="btn" onClick={onAction}
+          style={{ marginTop: 20, background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "10px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Members Page ──────────────────────────────────────────────────────────────
 
 function MembersPage({ members, loading, onAdd, onToggle, onEdit }) {
@@ -1480,6 +1566,8 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit }) {
 
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3,4].map(k => <Skeleton key={k} h={80} r={14} />)}</div>
+      ) : members.length === 0 ? (
+        <EmptyState type="members" title="No members yet" subtitle="Add your first member to get started." action="+ Add Member" onAction={onAdd} />
       ) : members.map((m, i) => (
         <div key={m.id} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, boxShadow: "0 1px 6px rgba(0,0,0,0.05)", animation: `fadeUp 0.25s ease ${Math.min(i,10)*0.04}s both`, opacity: m.active ? 1 : 0.6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
