@@ -5,12 +5,15 @@ import { useState } from "react";
  * Phone number + 4-digit PIN pad
  */
 export default function LoginPage({ onLogin, loading, error }) {
-  const [phone, setPhone]     = useState("");
-  const [pin,   setPin]       = useState("");
-  const [step,  setStep]      = useState("phone"); // "phone" | "pin"
+  const [phone,     setPhone]     = useState("");
+  const [pin,       setPin]       = useState("");
+  const [step,      setStep]      = useState("phone"); // "phone" | "pin"
+  const [attempted, setAttempted] = useState(false);
 
-  const phoneClean = phone.replace(/[\s\-]/g, "");
-  const canNext    = phoneClean.length >= 9;
+  const phoneRaw   = phone.replace(/[\s\-]/g, "");
+  // Normalize Kenyan local format (07XX / 01XX) to E.164 (+254XX)
+  const phoneClean = /^0[17]/.test(phoneRaw) ? "+254" + phoneRaw.slice(1) : phoneRaw;
+  const canNext    = phoneRaw.length >= 9;
   const canLogin   = pin.length === 4;
 
   const handleKey = (digit) => {
@@ -22,6 +25,7 @@ export default function LoginPage({ onLogin, loading, error }) {
 
   const handleSubmit = () => {
     if (!canLogin) return;
+    setAttempted(true);
     onLogin(phoneClean, pin);
   };
 
@@ -92,7 +96,7 @@ export default function LoginPage({ onLogin, loading, error }) {
           </>
         ) : (
           <>
-            <button onClick={() => { setStep("phone"); setPin(""); }} style={{ background:"none", border:"none", color:"#999", fontSize:13, marginBottom:20, padding:0, display:"flex", alignItems:"center", gap:4 }}>
+            <button onClick={() => { setStep("phone"); setPin(""); setAttempted(false); }} style={{ background:"none", border:"none", color:"#999", fontSize:13, marginBottom:20, padding:0, display:"flex", alignItems:"center", gap:4 }}>
               ← {phone}
             </button>
 
@@ -102,14 +106,14 @@ export default function LoginPage({ onLogin, loading, error }) {
             </div>
 
             {/* PIN dots */}
-            <div className={error ? "shake" : ""} style={{ display:"flex", justifyContent:"center", gap:16, marginBottom:32 }}>
+            <div className={error && attempted ? "shake" : ""} style={{ display:"flex", justifyContent:"center", gap:16, marginBottom:32 }}>
               {[0,1,2,3].map(i => (
                 <div key={i} style={{ width:16, height:16, borderRadius:"50%", background: i < pin.length ? "#1A1A1A" : "#ECEAE4", transition:"background 0.15s", transform: i < pin.length ? "scale(1.15)" : "scale(1)" }} />
               ))}
             </div>
 
             {/* Error */}
-            {error && (
+            {error && attempted && (
               <div style={{ background:"#FBE9E7", borderRadius:10, padding:"10px 14px", marginBottom:20, fontSize:13, color:"#BF360C", textAlign:"center", fontWeight:500 }}>
                 {error}
               </div>

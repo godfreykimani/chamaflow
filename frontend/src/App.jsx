@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { id: "dashboard",     label: "Dashboard",     icon: "⊞" },
   { id: "contributions", label: "Contributions", icon: "◈" },
   { id: "meetings",      label: "Meetings",      icon: "◉" },
-  { id: "record",        label: "Record",        icon: "⊕" },
+  { id: "record",        label: "Record",        icon: "⊕", adminOnly: true },
   { id: "members",       label: "Members",       icon: "◎" },
   { id: "report",        label: "Annual Report", icon: "▤", adminOnly: true },
   { id: "settings",      label: "Settings",      icon: "⊙" },
