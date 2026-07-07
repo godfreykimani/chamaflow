@@ -722,7 +722,7 @@ app.post("/api/meetings/:id/transcript", requireAdmin, audioUpload.single("audio
       if (!HF_API_KEY) { fs.unlink(req.file.path, ()=>{}); return fail(res, "HUGGINGFACE_API_KEY not configured on server"); }
 
       const hfRes = await fetch(
-        "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo",
+        "https://router.huggingface.co/hf-inference/models/openai/whisper-large-v3-turbo",
         { method: "POST", headers: { Authorization: `Bearer ${HF_API_KEY}`, "Content-Type": req.file.mimetype || "audio/webm" }, body: audioData }
       );
       fs.unlink(req.file.path, () => {});
