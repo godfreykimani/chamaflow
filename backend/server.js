@@ -165,12 +165,12 @@ db.exec(`
     { name: "Jessie Nyaga",    phone: "+254722864778", role: "Member"    },
     { name: "John Mwaura",     phone: "+254722839581", role: "Member"    },
     { name: "Kellen Wanderi",  phone: "0700000011",   role: "Member"    },
-    { name: "Leah Wangui",     phone: "+25422546049",  role: "Member"    },
-    { name: "Lydia Kibe",      phone: "+25425240643",  role: "Secretary" },
+    { name: "Leah Wangui",     phone: "+254722546049", role: "Member"    },
+    { name: "Lydia Kibe",      phone: "+254725240643", role: "Secretary" },
     { name: "Lydia Wangechi",  phone: "+254722283488", role: "Member"    },
     { name: "Peris Njeri",     phone: "+254722385680", role: "Member"    },
     { name: "Peter Ndichu",    phone: "+254748210371", role: "Member"    },
-    { name: "Rachel Mwaura",   phone: "+25422935721",  role: "Member"    },
+    { name: "Rachel Mwaura",   phone: "+254722935721", role: "Member"    },
     { name: "Wilson Wainaina", phone: "+254722261215", role: "Member"    },
   ];
   const upd = db.prepare("UPDATE members SET phone=?, role=? WHERE name=?");
