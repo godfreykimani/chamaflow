@@ -171,7 +171,7 @@ db.exec(`
     { name: "Peris Njeri",     phone: "+254722385680", role: "Member"    },
     { name: "Peter Ndichu",    phone: "+254748210371", role: "Member"    },
     { name: "Rachel Mwaura",   phone: "+254722935721", role: "Member"    },
-    { name: "Wilson Wainaina", phone: "+254722261215", role: "Member"    },
+    { name: "Wilson Wainaina", phone: "+254723547560", role: "Member"    },
   ];
   const upd = db.prepare("UPDATE members SET phone=?, role=? WHERE name=?");
   for (const { name, phone, role } of phoneUpdates) upd.run(phone, role, name);
