@@ -2162,26 +2162,33 @@ function SettingsPage({ role, currentUser, onLogout, memberCount }) {
 // ── Transcript Side Panel (desktop) ──────────────────────────────────────────
 
 function TranscriptPanel({ meeting, onClose }) {
-  const [copied, setCopied]     = useState(false);
-  const [minutes, setMinutes]   = useState(null);
+  const [copied, setCopied]         = useState(false);
+  const [minutes, setMinutes]       = useState(null);
   const [loadingMin, setLoadingMin] = useState(true);
+  const [freshMeeting, setFreshMeeting] = useState(meeting);
 
   useEffect(() => {
     setLoadingMin(true);
-    api.getMeetingMinutes(meeting.id)
-      .then(setMinutes)
+    setFreshMeeting(meeting);
+    Promise.all([
+      api.getMeeting(meeting.id),
+      api.getMeetingMinutes(meeting.id),
+    ])
+      .then(([m, mins]) => { setFreshMeeting(m); setMinutes(mins); })
       .catch(() => {})
       .finally(() => setLoadingMin(false));
   }, [meeting.id]);
 
+  const transcript = freshMeeting.transcript || meeting.transcript;
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(meeting.transcript || "").then(() => {
+    navigator.clipboard.writeText(transcript || "").then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
-  const wordCount = meeting.transcript ? meeting.transcript.trim().split(/\s+/).length : 0;
+  const wordCount = transcript ? transcript.trim().split(/\s+/).length : 0;
   const fmt = (n) => `KES ${Number(n || 0).toLocaleString()}`;
 
   return (
@@ -2196,11 +2203,11 @@ function TranscriptPanel({ meeting, onClose }) {
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ECEAE4", background: "#fff" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px", fontFamily: "'DM Serif Display', serif" }}>{meeting.date}</div>
-              <div style={{ fontSize: 12, color: "#999", marginTop: 3 }}>{meeting.location}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px", fontFamily: "'DM Serif Display', serif" }}>{freshMeeting.date}</div>
+              <div style={{ fontSize: 12, color: "#999", marginTop: 3 }}>{freshMeeting.location}</div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {meeting.transcript && (
+              {transcript && (
                 <button onClick={handleCopy} style={{ background: copied ? "#E8F5E9" : "#F0EEE8", color: copied ? "#2E7D32" : "#555", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
                   {copied ? "✓ Copied" : "⎘ Copy"}
                 </button>
@@ -2208,10 +2215,10 @@ function TranscriptPanel({ meeting, onClose }) {
               <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#BBB", cursor: "pointer", lineHeight: 1 }}>✕</button>
             </div>
           </div>
-          {(meeting.proposer_name || meeting.seconder_name) && (
+          {(freshMeeting.proposer_name || freshMeeting.seconder_name) && (
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              {meeting.proposer_name && <span style={{ fontSize: 10, background: "#E8F5E9", color: "#2E7D32", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>📝 {meeting.proposer_name}</span>}
-              {meeting.seconder_name && <span style={{ fontSize: 10, background: "#E3F2FD", color: "#1565C0", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>🤝 {meeting.seconder_name}</span>}
+              {freshMeeting.proposer_name && <span style={{ fontSize: 10, background: "#E8F5E9", color: "#2E7D32", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>📝 {freshMeeting.proposer_name}</span>}
+              {freshMeeting.seconder_name && <span style={{ fontSize: 10, background: "#E3F2FD", color: "#1565C0", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>🤝 {freshMeeting.seconder_name}</span>}
             </div>
           )}
         </div>
@@ -2315,9 +2322,14 @@ function TranscriptPanel({ meeting, onClose }) {
           {/* ── Raw Transcript ── */}
           <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 14 }}>RAW TRANSCRIPT</div>
-            {meeting.transcript ? (
+            {loadingMin ? (
+              <div style={{ textAlign: "center", padding: "32px 0", color: "#CCC" }}>
+                <div style={{ width: 20, height: 20, border: "2px solid #EEE", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 10px" }} />
+                <div style={{ fontSize: 13, color: "#BBB" }}>Loading transcript…</div>
+              </div>
+            ) : transcript ? (
               <p style={{ margin: 0, fontSize: 15, color: "#1A1A1A", lineHeight: 1.9, whiteSpace: "pre-wrap" }}>
-                {meeting.transcript}
+                {transcript}
               </p>
             ) : (
               <div style={{ textAlign: "center", padding: "48px 0" }}>
@@ -2330,10 +2342,10 @@ function TranscriptPanel({ meeting, onClose }) {
         </div>
 
         {/* Footer */}
-        {meeting.transcript && (
+        {transcript && (
           <div style={{ padding: "14px 24px", borderTop: "1px solid #ECEAE4", background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 12, color: "#BBB" }}>{wordCount.toLocaleString()} words · AI transcribed</div>
-            <div style={{ fontSize: 12, color: "#BBB" }}>{meeting.status}</div>
+            <div style={{ fontSize: 12, color: "#BBB" }}>{freshMeeting.status}</div>
           </div>
         )}
       </div>
