@@ -925,47 +925,47 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
       {showRec && isAdmin && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={e => { if (e.target === e.currentTarget && !recording && !transcribing) { setShowRec(false); setRecMonth(""); } }}>
-          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 28, width: "100%", maxWidth: 670 }} className="fade-up">
+          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 32, width: "100%", maxWidth: 670, fontFamily: "'DM Sans', sans-serif" }} className="fade-up">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#F7F6F2" }}>🎙 AI Meeting Recorder</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>🎙 AI Meeting Recorder</div>
               {!recording && !transcribing && (
                 <button onClick={() => { setShowRec(false); setRecMonth(""); }}
-                  style={{ background: "#2A2A2A", border: "none", borderRadius: 8, width: 28, height: 28, color: "#888", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                  style={{ background: "#2A2A2A", border: "none", borderRadius: 8, width: 32, height: 32, color: "#888", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
               )}
             </div>
 
             {/* Model selector */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
               {[
                 { id: "groq",        label: "Groq",         sub: "Whisper Large v3" },
                 { id: "huggingface", label: "HuggingFace",  sub: "Whisper Turbo"    },
               ].map(p => (
                 <button key={p.id} onClick={() => !recording && !transcribing && setAiProvider(p.id)}
-                  style={{ flex: 1, padding: "10px 10px", borderRadius: 10, border: `1.5px solid ${aiProvider === p.id ? "#C8A97E" : "#333"}`, background: aiProvider === p.id ? "rgba(200,169,126,0.12)" : "#2A2A2A", color: aiProvider === p.id ? "#C8A97E" : "#666", fontSize: 11, fontWeight: 600, cursor: recording || transcribing ? "default" : "pointer", textAlign: "center", lineHeight: 1.4 }}>
-                  {p.label}<br /><span style={{ fontSize: 9, fontWeight: 400, opacity: 0.8 }}>{p.sub}</span>
+                  style={{ flex: 1, padding: "12px 10px", borderRadius: 12, border: `1.5px solid ${aiProvider === p.id ? "#C8A97E" : "#333"}`, background: aiProvider === p.id ? "rgba(200,169,126,0.12)" : "#2A2A2A", color: aiProvider === p.id ? "#C8A97E" : "#666", fontSize: 14, fontWeight: 600, cursor: recording || transcribing ? "default" : "pointer", textAlign: "center", lineHeight: 1.5, fontFamily: "inherit" }}>
+                  {p.label}<br /><span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>{p.sub}</span>
                 </button>
               ))}
             </div>
 
             {/* Month selector */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, color: "#666", letterSpacing: 0.5, marginBottom: 6 }}>SELECT MEETING MONTH</div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: "#666", letterSpacing: 0.5, marginBottom: 8 }}>SELECT MEETING MONTH</div>
               <select value={recMonth} onChange={e => setRecMonth(e.target.value)} disabled={recording || transcribing}
-                style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #333", background: "#2A2A2A", color: "#F0EDE6", fontSize: 12, fontFamily: "inherit", outline: "none" }}>
+                style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1px solid #333", background: "#2A2A2A", color: "#F0EDE6", fontSize: 15, fontFamily: "inherit", outline: "none" }}>
                 <option value="">Choose month…</option>
                 {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
               {recMeeting && (
-                <div style={{ fontSize: 10, color: "#4CAF50", marginTop: 5 }}>✓ {recMeeting.date} — {recMeeting.location}</div>
+                <div style={{ fontSize: 13, color: "#4CAF50", marginTop: 8 }}>✓ {recMeeting.date} — {recMeeting.location}</div>
               )}
               {recMonth && !recMeeting && (
-                <div style={{ fontSize: 10, color: "#C8A97E", marginTop: 5 }}>◎ No meeting scheduled yet — a placeholder will be created automatically</div>
+                <div style={{ fontSize: 13, color: "#C8A97E", marginTop: 8 }}>◎ No meeting scheduled yet — a placeholder will be created automatically</div>
               )}
             </div>
 
             {/* Waveform */}
-            <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 16, overflow: "hidden", background: "#111", borderRadius: 12 }}>
+            <div style={{ height: 72, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 20, overflow: "hidden", background: "#111", borderRadius: 14 }}>
               {recording
                 ? waveform.map((h, i) => <div key={i} style={{ width: 3, height: h, background: "#C8A97E", borderRadius: 2, transition: "height 0.05s" }} />)
                 : Array.from({ length: 40 }).map((_, i) => <div key={i} style={{ width: 3, height: 8, background: "#2A2A2A", borderRadius: 2 }} />)
@@ -974,22 +974,22 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
 
             {/* Controls */}
             {transcribing ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", padding: 14 }}>
-                <div style={{ width: 16, height: 16, border: "2px solid #333", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                <span style={{ fontSize: 13, color: "#888" }}>Transcribing with {aiProvider === "huggingface" ? "Whisper Turbo" : "Groq Whisper"}…</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", padding: 16 }}>
+                <div style={{ width: 18, height: 18, border: "2px solid #333", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                <span style={{ fontSize: 15, color: "#888" }}>Transcribing with {aiProvider === "huggingface" ? "Whisper Turbo" : "Groq Whisper"}…</span>
               </div>
             ) : recording ? (
               <button className="btn" onClick={handleStopRecording}
-                style={{ width: "100%", background: "#EF5350", color: "#fff", border: "none", borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 700, animation: "pulse 1.5s infinite" }}>
+                style={{ width: "100%", background: "#EF5350", color: "#fff", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit", animation: "pulse 1.5s infinite" }}>
                 ⏹ Stop &amp; Transcribe
               </button>
             ) : (
               <button className="btn" onClick={handleStartRecording} disabled={!recMonth}
-                style={{ width: "100%", background: recMonth ? "#C8A97E" : "#2A2A2A", color: recMonth ? "#1A1A1A" : "#555", border: "none", borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 700 }}>
+                style={{ width: "100%", background: recMonth ? "#C8A97E" : "#2A2A2A", color: recMonth ? "#1A1A1A" : "#555", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit" }}>
                 ⏺ Start Recording
               </button>
             )}
-            <div style={{ fontSize: 10, color: "#555", textAlign: "center", marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: "#555", textAlign: "center", marginTop: 14 }}>
               Audio transcribed by {aiProvider === "huggingface" ? "HuggingFace Whisper Turbo" : "Groq Whisper Large v3"} and saved to the meeting
             </div>
           </div>
