@@ -29,8 +29,8 @@ async function request(path, options = {}) {
 
   const json = await res.json().catch(() => ({ ok: false, error: "Invalid server response" }));
 
-  // Token expired or invalid → force logout
-  if (res.status === 401) {
+  // H2: only force-logout on 401 for authenticated requests (not login itself)
+  if (res.status === 401 && !options._skipLogout) {
     token.clear();
     window.dispatchEvent(new Event("cf:logout"));
   }
@@ -42,7 +42,7 @@ async function request(path, options = {}) {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const login = (phone, pin) =>
-  request("/auth/login", { method: "POST", body: JSON.stringify({ phone, pin }) });
+  request("/auth/login", { method: "POST", body: JSON.stringify({ phone, pin }), _skipLogout: true });
 
 export const changePin = (current_pin, new_pin) =>
   request("/auth/change-pin", { method: "POST", body: JSON.stringify({ current_pin, new_pin }) });

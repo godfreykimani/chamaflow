@@ -8,7 +8,12 @@ import ChangePinPage from "./ChangePinPage.jsx";
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString()}`;
 
 const now = new Date();
-const CURRENT_MONTH = now.toLocaleString("en-GB", { month: "long" }) + " " + now.getFullYear();
+// M2: computed as a function so it stays accurate across month boundaries
+const getCurrentMonth = () => {
+  const d = new Date();
+  return d.toLocaleString("en-GB", { month: "long" }) + " " + d.getFullYear();
+};
+const CURRENT_MONTH = getCurrentMonth();
 
 const TYPE_META = {
   Contribution: { icon: "◈", bg: "#E8F0FE", text: "#1565C0", border: "#90CAF9" },
@@ -218,7 +223,7 @@ function ChamaFlow({ onLogout }) {
       .then(setContributions)
       .catch(() => showToast("Failed to load contributions", "error"))
       .finally(() => setLoad("contributions", false));
-  }, [page, filterYear, filterStatus, filterMember, filterType, currentUser]);
+  }, [page, filterYear, filterStatus, filterMember, filterType, currentUser, isAdmin]);
 
   // ── Fetch meetings when on meetings page ──
   const loadMeetings = useCallback(() => {
@@ -239,7 +244,7 @@ function ChamaFlow({ onLogout }) {
   useEffect(() => {
     if (page !== "record") return;
     setLoad("summary", true);
-    api.getMonthlySummary(CURRENT_MONTH)
+    api.getMonthlySummary(getCurrentMonth())
       .then(setMonthlySummary)
       .catch(() => {})
       .finally(() => setLoad("summary", false));
@@ -271,7 +276,7 @@ function ChamaFlow({ onLogout }) {
         status: confirmed ? "Confirmed" : "Pending",
       });
       showToast("Contribution recorded successfully");
-      setRecordForm(f => ({ ...f, member_id: "", ref: "", confirmed: false }));
+      setRecordForm(f => ({ ...f, member_id: "", amount: "5000", ref: "", confirmed: false }));
       // Refresh summary
       const s = await api.getMonthlySummary(CURRENT_MONTH);
       setMonthlySummary(s);
@@ -335,13 +340,18 @@ function ChamaFlow({ onLogout }) {
   };
 
   // ── Confirm contribution (admin) ──
+  const [confirmingId, setConfirmingId] = useState(null);
   const handleConfirmContrib = async (id) => {
+    if (confirmingId) return; // L5: prevent double-confirm
+    setConfirmingId(id);
     try {
       await api.updateContribution(id, { status: "Confirmed" });
       setContributions(prev => prev.map(c => c.id === id ? { ...c, status: "Confirmed" } : c));
       showToast("Contribution confirmed");
     } catch (e) {
       showToast("Failed to confirm", "error");
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -467,12 +477,12 @@ function ChamaFlow({ onLogout }) {
 
             <div style={{ maxWidth: viewMode === "desktop" ? 960 : "none", padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
               {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} />}
-              {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} selectStyle={selectStyle} />}
+              {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} />}
               {page === "report"  && isAdmin && <AnnualReportPage report={annualReport} loading={loading.report} year={reportYear} setYear={setReportYear} />}
-              {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} />}
+              {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} memberCount={members.filter(m => m.active).length} />}
             </div>
           </div>
 
@@ -645,7 +655,7 @@ function QuickCard({ title, sub, icon, color, iconColor, onClick }) {
 
 // ── Contributions Page ────────────────────────────────────────────────────────
 
-function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, selectStyle }) {
+function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle }) {
   const totalShares   = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
   const totalFines    = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
   const totalLateness = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
@@ -761,8 +771,9 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
                     <Tag label={c.status} color={c.status === "Confirmed" ? "#E8F5E9" : "#FFF3E0"} text={c.status === "Confirmed" ? "#2E7D32" : "#E65100"} />
                   </div>
                   {c.status === "Pending" && isAdmin && (
-                    <button className="btn" onClick={() => onConfirm(c.id)} style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 11, fontWeight: 600, marginTop: 2 }}>
-                      Confirm Payment
+                    <button className="btn" onClick={() => onConfirm(c.id)} disabled={confirmingId === c.id}
+                      style={{ background: confirmingId === c.id ? "#CCC" : "#1A1A1A", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 11, fontWeight: 600, marginTop: 2 }}>
+                      {confirmingId === c.id ? "Confirming…" : "Confirm Payment"}
                     </button>
                   )}
                   <div style={{ fontSize: 10, color: "#CCC", marginTop: 8 }}>Ref: {c.ref || "—"} · {c.created_at?.slice(0,16)}</div>
@@ -1272,8 +1283,9 @@ function AttendanceModal({ meeting, onClose, showToast }) {
         setFines(prev => [...prev, msg]);
         showToast(msg);
       } else if (status === "present") {
-        // fine was removed — check if we had one listed
-        setFines(prev => prev.filter(f => !f.includes(rows.find(r => r.id === memberId)?.name ?? "___")));
+        // H6: resolve name before the async setFines updater to avoid stale closure
+        const name = rows.find(r => r.id === memberId)?.name ?? "___";
+        setFines(prev => prev.filter(f => !f.includes(name)));
       }
       setRows(prev => prev.map(r => r.id === memberId ? { ...r, dirty: false } : r));
     } catch (e) {
@@ -1724,6 +1736,9 @@ function BulkImportTab({ members, loading, onBulkImport, selectStyle }) {
 
   const [rows, setRows] = useState(initRows);
 
+  // M8: re-initialise rows if members list changes (e.g. new member added)
+  useEffect(() => { setRows(initRows()); }, [members]);
+
   const setRow = (idx, key, val) =>
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r));
 
@@ -2084,7 +2099,7 @@ function SettingsPinBoxes({ value, onChange, hasError }) {
   );
 }
 
-function SettingsPage({ role, currentUser, onLogout }) {
+function SettingsPage({ role, currentUser, onLogout, memberCount }) {
   const [showPinModal, setShowPinModal] = useState(false);
 
   return (
@@ -2095,7 +2110,7 @@ function SettingsPage({ role, currentUser, onLogout }) {
       </div>
       <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Chama Details</div>
-        {[["Name","Kabazim Reloded"],["Meeting Day","Monthly"],["Members","18"],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
+        {[["Name","Kabazim Reloded"],["Meeting Day","Monthly"],["Members", String(memberCount ?? "—")],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #F5F4F0" }}>
             <div style={{ fontSize: 12, color: "#999" }}>{k}</div>
             <div style={{ fontSize: 12, fontWeight: 500, color: "#1A1A1A" }}>{v}</div>
@@ -2216,7 +2231,7 @@ function PDFModal({ meeting, members, onClose }) {
         <div style={{ padding: "20px 24px", borderBottom: "1px solid #ECEAE4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 14, fontWeight: 700 }}>Meeting Minutes</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button style={{ background: "#F0EEE8", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>📥 Export PDF</button>
+            <button onClick={() => window.print()} style={{ background: "#F0EEE8", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>📥 Export PDF</button>
             <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 20, color: "#999", cursor: "pointer" }}>✕</button>
           </div>
         </div>
@@ -2246,7 +2261,7 @@ function PDFModal({ meeting, members, onClose }) {
                     <td style={{ padding: "6px 8px", fontWeight: 500 }}>{m.name}</td>
                     <td style={{ padding: "6px 8px", textAlign: "center" }}>{m.shares}</td>
                     <td style={{ padding: "6px 8px" }}>{fmt(m.shares * 5000)}</td>
-                    <td style={{ padding: "6px 8px", color: i < 22 ? "#2E7D32" : "#E65100", fontWeight: 600, fontSize: 10 }}>{i < 22 ? "✓ Paid" : "Pending"}</td>
+                    <td style={{ padding: "6px 8px", color: "#999", fontSize: 10 }}>—</td>
                   </tr>
                 ))}
                 <tr style={{ background: "#1A1A1A", color: "#fff", fontWeight: 700 }}>
@@ -2324,7 +2339,7 @@ function AddMemberModal({ onClose, onAdd }) {
             </select>
           </div>
         </div>
-        <button className="btn" onClick={handleSubmit} disabled={saving || !form.name} style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", opacity: !form.name ? 0.5 : 1 }}>
+        <button className="btn" onClick={handleSubmit} disabled={saving || !form.name || !form.phone} style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", opacity: !form.name || !form.phone ? 0.5 : 1 }}>
           {saving ? <><Spinner /> Adding…</> : "Add Member"}
         </button>
         <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 10, textAlign: "center" }}>

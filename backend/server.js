@@ -28,13 +28,37 @@ if (JWT_SECRET === "chamaflow-dev-secret-change-in-production" && process.env.NO
 }
 if (!fs.existsSync(UPLOADS)) fs.mkdirSync(UPLOADS, { recursive: true });
 
+// ─── In-memory rate limiter (no extra packages) ───────────────────────────────
+// Keyed by IP+identifier; max 10 attempts per 15-minute window.
+const _rl = new Map();
+function rateLimitCheck(key, max = 10, windowMs = 15 * 60 * 1000) {
+  const now = Date.now();
+  const entry = _rl.get(key);
+  if (entry && now < entry.reset) {
+    if (entry.count >= max) return false;
+    entry.count++;
+    return true;
+  }
+  _rl.set(key, { count: 1, reset: now + windowMs });
+  return true;
+}
+function rateLimitReset(key) { _rl.delete(key); }
+// Prune stale entries every 30 minutes to avoid memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _rl) if (now >= v.reset) _rl.delete(k);
+}, 30 * 60 * 1000);
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 const app = express();
-const ALLOWED_ORIGINS = process.env.FRONTEND_URL
-  ? [process.env.FRONTEND_URL, "https://chamaflow-six.vercel.app"]
-  : ["*"];
-app.use(cors({ origin: (origin, cb) => (!origin || ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin)) ? cb(null, true) : cb(new Error("Not allowed by CORS")), methods: ["GET","POST","PUT","DELETE","PATCH"], allowedHeaders: ["Content-Type","Authorization"] }));
+// H1: never fall back to wildcard — always restrict to known origins
+const ALLOWED_ORIGINS = [
+  "https://chamaflow-six.vercel.app",
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+  ...(process.env.NODE_ENV !== "production" ? ["http://localhost:5173", "http://localhost:4173"] : []),
+];
+app.use(cors({ origin: (origin, cb) => (!origin || ALLOWED_ORIGINS.includes(origin)) ? cb(null, true) : cb(new Error("Not allowed by CORS")), methods: ["GET","POST","PUT","DELETE","PATCH"], allowedHeaders: ["Content-Type","Authorization"] }));
 app.use(express.json());
 app.use("/uploads", express.static(UPLOADS));
 
@@ -194,7 +218,9 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!["Chairman","Secretary"].includes(req.user.role)) return fail(res, "Admin access required", 403);
+  // L6: re-check role from DB so revoked admins lose access immediately
+  const m = db.prepare("SELECT role FROM members WHERE id=?").get(req.user.id);
+  if (!m || !["Chairman","Secretary"].includes(m.role)) return fail(res, "Admin access required", 403);
   next();
 }
 
@@ -205,12 +231,15 @@ app.post("/api/auth/login", async (req, res) => {
   const { phone, pin } = req.body;
   if (!phone || !pin) return fail(res, "Phone and PIN are required");
   const cleanPhone = String(phone).replace(/[\s\-]/g, "");
+  const rlKey = `login:${req.ip}:${cleanPhone}`;
+  if (!rateLimitCheck(rlKey)) return fail(res, "Too many attempts — try again in 15 minutes", 429);
   const member = db.prepare("SELECT * FROM members WHERE phone=?").get(cleanPhone);
   if (!member)         return fail(res, "Phone number not registered", 404);
   if (!member.active)  return fail(res, "Account deactivated — contact the Chairman", 403);
   if (!member.pin_hash)return fail(res, "PIN not set — contact the Secretary", 403);
   const valid = await bcrypt.compare(String(pin), member.pin_hash);
   if (!valid) return fail(res, "Incorrect PIN", 401);
+  rateLimitReset(rlKey); // clear on success
   const token = jwt.sign({ id:member.id, name:member.name, role:member.role, phone:member.phone }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
   audit(member.id, "LOGIN");
   const { pin_hash: _, ...safe } = member;
@@ -222,6 +251,8 @@ app.post("/api/auth/change-pin", requireAuth, async (req, res) => {
   const { current_pin, new_pin } = req.body;
   if (!current_pin || !new_pin) return fail(res, "current_pin and new_pin are required");
   if (!/^\d{4}$/.test(String(new_pin))) return fail(res, "PIN must be exactly 4 digits");
+  const rlKey = `changepin:${req.user.id}`;
+  if (!rateLimitCheck(rlKey, 10)) return fail(res, "Too many attempts — try again in 15 minutes", 429);
   const member = db.prepare("SELECT * FROM members WHERE id=?").get(req.user.id);
   if (!await bcrypt.compare(String(current_pin), member.pin_hash)) return fail(res, "Current PIN is incorrect", 401);
   db.prepare("UPDATE members SET pin_hash=?, must_change_pin=0 WHERE id=?").run(await bcrypt.hash(String(new_pin), 10), req.user.id);
@@ -358,17 +389,23 @@ app.post("/api/contributions/bulk", requireAdmin, (req, res) => {
   );
 
   const results = [];
+  const skipped = [];
+  const checkDup = db.prepare(
+    "SELECT id FROM contributions WHERE member_id=? AND month=? AND type=?"
+  );
   const bulkTx = db.transaction(() => {
     for (const e of entries) {
       const { member_id, type = "Contribution", amount, method = "M-Pesa", ref = "", status = "Pending" } = e;
-      if (!member_id || !amount) continue;
-      const r = insert.run(member_id, type, month, parseFloat(amount), method, ref, status, req.user.id);
+      const parsed = parseFloat(amount);
+      if (!member_id || !amount || parsed <= 0 || isNaN(parsed)) continue;
+      if (checkDup.get(member_id, month, type)) { skipped.push(member_id); continue; }
+      const r = insert.run(member_id, type, month, parsed, method, ref, status, req.user.id);
       results.push(r.lastInsertRowid);
     }
   });
   bulkTx();
-  audit(req.user.id, "BULK_IMPORT", `contributions`, { month, count: results.length });
-  ok(res, { inserted: results.length, ids: results }, 201);
+  audit(req.user.id, "BULK_IMPORT", `contributions`, { month, count: results.length, skipped: skipped.length });
+  ok(res, { inserted: results.length, skipped: skipped.length, ids: results }, 201);
 });
 
 const storage = multer.diskStorage({ destination:(_,__,cb)=>cb(null,UPLOADS), filename:(_,f,cb)=>cb(null,`${uuidv4()}${path.extname(f.originalname)}`) });
@@ -476,7 +513,7 @@ app.post("/api/meetings/:id/attendance", requireAdmin, (req, res) => {
   } else if (prevStatus !== "present") {
     // Changed back to present — remove the auto-fine if it's still Pending
     const existingFine = db.prepare(
-      "SELECT id FROM contributions WHERE member_id=? AND notes=? AND status='Pending'"
+      "SELECT id FROM contributions WHERE member_id=? AND notes=? AND type IN ('Fine','Lateness') AND status='Pending'"
     ).get(member_id, FINE_NOTE_PREFIX);
     if (existingFine) {
       db.prepare("DELETE FROM contributions WHERE id=?").run(existingFine.id);

@@ -3,7 +3,9 @@ import { useState, useRef } from "react";
 // Four individual digit boxes — auto-advance, backspace-back, show/hide toggle
 function PinBoxes({ value, onChange, hasError }) {
   const [show, setShow] = useState(false);
-  const refs = [useRef(null), useRef(null), useRef(null), useRef(null)];
+  // C3: individual declarations — hooks must not be called inside array literals
+  const r0 = useRef(null); const r1 = useRef(null); const r2 = useRef(null); const r3 = useRef(null);
+  const refs = [r0, r1, r2, r3];
 
   const handleChange = (i, e) => {
     const digit = e.target.value.replace(/\D/g, "").slice(-1);
