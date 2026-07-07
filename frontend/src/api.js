@@ -121,11 +121,11 @@ export const recordAttendance = (meetingId, body) =>
 export const addDecision = (meetingId, body) =>
   request(`/meetings/${meetingId}/decisions`, { method: "POST", body: JSON.stringify(body) });
 
-export const transcribeMeeting = (id, audioBlob) => {
+export const transcribeMeeting = (id, audioBlob, provider = "groq") => {
   const t = token.get();
   const form = new FormData();
   form.append("audio", audioBlob, "recording.webm");
-  return fetch(`${BASE}/meetings/${id}/transcript`, {
+  return fetch(`${BASE}/meetings/${id}/transcript?provider=${provider}`, {
     method: "POST",
     headers: t ? { Authorization: `Bearer ${t}` } : {},
     body: form,

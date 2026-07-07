@@ -135,6 +135,49 @@ const audit    = (actorId, action, target=null, details=null) => {
   try { db.prepare("INSERT INTO audit_log (actor_id,action,target,details) VALUES (?,?,?,?)").run(actorId, action, target, details ? JSON.stringify(details) : null); } catch {}
 };
 
+// ─── WhatsApp ─────────────────────────────────────────────────────────────────
+
+function toE164(phone) {
+  const p = String(phone).replace(/[\s\-+]/g, "");
+  if (p.startsWith("07") || p.startsWith("01")) return "254" + p.slice(1);
+  if (p.startsWith("254")) return p;
+  return p;
+}
+
+async function sendWhatsAppOnboarding(phone, name) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token         = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!phoneNumberId || !token) return;
+  const appUrl = process.env.APP_URL || "https://chamaflow-six.vercel.app";
+  const res = await fetch(
+    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: toE164(phone),
+        type: "template",
+        template: {
+          name: "member_onboarding",
+          language: { code: "en" },
+          components: [{
+            type: "body",
+            parameters: [
+              { type: "text", text: name },
+              { type: "text", text: appUrl },
+              { type: "text", text: phone },
+            ],
+          }],
+        },
+      }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) console.warn("[WhatsApp] send failed:", JSON.stringify(data));
+  else console.log("[WhatsApp] sent to", toE164(phone), "→", data?.messages?.[0]?.id);
+}
+
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 
 function requireAuth(req, res, next) {
@@ -236,6 +279,7 @@ app.post("/api/members", requireAdmin, async (req, res) => {
     .run(name, shares, role, cleanPhone, email, await bcrypt.hash(String(pin), 10));
   audit(req.user.id, "ADD_MEMBER", `member:${r.lastInsertRowid}`, { name, phone: cleanPhone });
   ok(res, db.prepare("SELECT id,name,shares,role,active,phone,email,must_change_pin,created_at FROM members WHERE id=?").get(r.lastInsertRowid), 201);
+  sendWhatsAppOnboarding(cleanPhone, name).catch(e => console.warn("[WhatsApp]", e.message));
 });
 
 app.put("/api/members/:id", requireAdmin, (req, res) => {
@@ -459,40 +503,55 @@ app.delete("/api/meetings/:id", requireAdmin, (req, res) => {
   ok(res, { message: "Meeting deleted" });
 });
 
-// POST /api/meetings/:id/transcript — Chairman/Secretary only, audio → Groq Whisper → save
+// POST /api/meetings/:id/transcript — Chairman/Secretary only, audio → Whisper → save
+// Query param: ?provider=groq (default) | huggingface
 app.post("/api/meetings/:id/transcript", requireAdmin, audioUpload.single("audio"), async (req, res) => {
   const meeting = db.prepare("SELECT id FROM meetings WHERE id=?").get(req.params.id);
   if (!meeting) return notFound(res, "Meeting");
   if (!req.file) return fail(res, "No audio file uploaded");
 
-  const GROQ_API_KEY = process.env.GROQ_API_KEY;
-  if (!GROQ_API_KEY) { fs.unlink(req.file.path, ()=>{}); return fail(res, "GROQ_API_KEY not configured on server"); }
+  const provider = req.query.provider === "huggingface" ? "huggingface" : "groq";
 
   try {
     const audioData = fs.readFileSync(req.file.path);
     const blob = new Blob([audioData], { type: req.file.mimetype || "audio/webm" });
-    const form = new FormData();
-    form.append("file", blob, req.file.originalname || "recording.webm");
-    form.append("model", "whisper-large-v3");
+    let transcript;
 
-    const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-      body: form,
-    });
+    if (provider === "huggingface") {
+      const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
+      if (!HF_API_KEY) { fs.unlink(req.file.path, ()=>{}); return fail(res, "HUGGINGFACE_API_KEY not configured on server"); }
 
-    fs.unlink(req.file.path, () => {});
+      const form = new FormData();
+      form.append("file", blob, req.file.originalname || "recording.webm");
+      form.append("model", "openai/whisper-large-v3-turbo");
 
-    if (!groqRes.ok) {
-      const errText = await groqRes.text();
-      return fail(res, `Groq API error: ${errText}`);
+      const hfRes = await fetch(
+        "https://router.huggingface.co/hf-inference/models/openai/whisper-large-v3-turbo/v1/audio/transcriptions",
+        { method: "POST", headers: { Authorization: `Bearer ${HF_API_KEY}` }, body: form }
+      );
+      fs.unlink(req.file.path, () => {});
+      if (!hfRes.ok) { const t = await hfRes.text(); return fail(res, `HuggingFace API error: ${t}`); }
+      transcript = (await hfRes.json()).text;
+
+    } else {
+      const GROQ_API_KEY = process.env.GROQ_API_KEY;
+      if (!GROQ_API_KEY) { fs.unlink(req.file.path, ()=>{}); return fail(res, "GROQ_API_KEY not configured on server"); }
+
+      const form = new FormData();
+      form.append("file", blob, req.file.originalname || "recording.webm");
+      form.append("model", "whisper-large-v3");
+
+      const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions",
+        { method: "POST", headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, body: form }
+      );
+      fs.unlink(req.file.path, () => {});
+      if (!groqRes.ok) { const t = await groqRes.text(); return fail(res, `Groq API error: ${t}`); }
+      transcript = (await groqRes.json()).text;
     }
 
-    const data = await groqRes.json();
-    const transcript = data.text;
     db.prepare("UPDATE meetings SET transcript=? WHERE id=?").run(transcript, req.params.id);
-    audit(req.user.id, "TRANSCRIBE_MEETING", `meeting:${req.params.id}`);
-    ok(res, { transcript });
+    audit(req.user.id, "TRANSCRIBE_MEETING", `meeting:${req.params.id}`, { provider });
+    ok(res, { transcript, provider });
   } catch (e) {
     if (req.file?.path) fs.unlink(req.file.path, () => {});
     return fail(res, e.message || "Transcription failed");

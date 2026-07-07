@@ -789,6 +789,7 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
   const [recording,      setRecording]      = useState(false);
   const [transcribing,   setTranscribing]   = useState(false);
   const [waveform,       setWaveform]       = useState([]);
+  const [aiProvider,     setAiProvider]     = useState("groq");
   const [endorseTarget,    setEndorseTarget]    = useState(null);
   const [attendanceTarget, setAttendanceTarget] = useState(null);
   const [deleteConfirm,    setDeleteConfirm]    = useState(null);
@@ -868,7 +869,7 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
         }
 
         const audioBlob = new Blob(audioChunksRef.current, { type: capturedMime });
-        await api.transcribeMeeting(meetingId, audioBlob);
+        await api.transcribeMeeting(meetingId, audioBlob, aiProvider);
         showToast("Transcript saved successfully");
         onRefresh();
         setShowRec(false);
@@ -905,6 +906,19 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
         <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 20, marginBottom: 20 }} className="fade-up">
           <div style={{ fontSize: 13, fontWeight: 600, color: "#F7F6F2", marginBottom: 14 }}>🎙 AI Meeting Recorder</div>
 
+          {/* Model selector */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {[
+              { id: "groq",         label: "Groq",              sub: "Whisper Large v3" },
+              { id: "huggingface",  label: "HuggingFace",       sub: "Whisper Turbo" },
+            ].map(p => (
+              <button key={p.id} onClick={() => !recording && !transcribing && setAiProvider(p.id)}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, border: `1.5px solid ${aiProvider === p.id ? "#C8A97E" : "#333"}`, background: aiProvider === p.id ? "rgba(200,169,126,0.12)" : "#2A2A2A", color: aiProvider === p.id ? "#C8A97E" : "#666", fontSize: 11, fontWeight: 600, cursor: recording || transcribing ? "default" : "pointer", textAlign: "center", lineHeight: 1.4 }}>
+                {p.label}<br /><span style={{ fontSize: 9, fontWeight: 400, opacity: 0.8 }}>{p.sub}</span>
+              </button>
+            ))}
+          </div>
+
           {/* Month selector */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, color: "#666", letterSpacing: 0.5, marginBottom: 6 }}>SELECT MEETING MONTH</div>
@@ -937,7 +951,7 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
           {transcribing ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", padding: 12 }}>
               <div style={{ width: 16, height: 16, border: "2px solid #333", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-              <span style={{ fontSize: 13, color: "#888" }}>Transcribing audio with Groq Whisper…</span>
+              <span style={{ fontSize: 13, color: "#888" }}>Transcribing with {aiProvider === "huggingface" ? "Whisper Turbo" : "Groq Whisper"}…</span>
             </div>
           ) : recording ? (
             <button className="btn" onClick={handleStopRecording}
@@ -950,7 +964,9 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
               ⏺ Start Recording
             </button>
           )}
-          <div style={{ fontSize: 10, color: "#555", textAlign: "center", marginTop: 10 }}>Audio is sent to Groq Whisper AI and transcript is saved to the meeting</div>
+          <div style={{ fontSize: 10, color: "#555", textAlign: "center", marginTop: 10 }}>
+            Audio is transcribed by {aiProvider === "huggingface" ? "HuggingFace Whisper Turbo (open-source)" : "Groq Whisper Large v3"} and saved to the meeting
+          </div>
         </div>
       )}
 
@@ -1945,7 +1961,127 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode }) {
 
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
+function SettingsPinModal({ onClose }) {
+  const [current, setCurrent] = useState("");
+  const [next,    setNext]    = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState(null);
+  const [done,    setDone]    = useState(false);
+
+  const mismatch = confirm.length === 4 && next !== confirm;
+  const ready    = current.length === 4 && next.length === 4 && confirm.length === 4 && !mismatch;
+
+  const handleSave = async () => {
+    if (!ready) return;
+    setSaving(true); setError(null);
+    try {
+      await api.changePin(current, next);
+      setDone(true);
+      setTimeout(onClose, 1200);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 440, padding: "28px 24px 40px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Change PIN</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#999", cursor: "pointer" }}>✕</button>
+        </div>
+
+        {done ? (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>PIN updated!</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 10 }}>Current PIN</div>
+              <SettingsPinBoxes value={current} onChange={setCurrent} />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 10 }}>New PIN</div>
+              <SettingsPinBoxes value={next} onChange={setNext} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: mismatch ? "#EF5350" : "#555", marginBottom: 10 }}>
+                Confirm New PIN {mismatch && "— don't match"}
+              </div>
+              <SettingsPinBoxes value={confirm} onChange={setConfirm} hasError={mismatch} />
+            </div>
+
+            {error && (
+              <div style={{ background: "#FBE9E7", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#BF360C", fontWeight: 500 }}>{error}</div>
+            )}
+
+            <button onClick={handleSave} disabled={!ready || saving}
+              style={{ width: "100%", background: ready && !saving ? "#1A1A1A" : "#ECEAE4", color: ready && !saving ? "#F7F6F2" : "#BBB", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, transition: "all 0.2s" }}>
+              {saving ? "Saving…" : "Update PIN"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Shared 4-box PIN input used in both SettingsPinModal and the full-page ChangePinPage
+function SettingsPinBoxes({ value, onChange, hasError }) {
+  const [show, setShow] = useState(false);
+  const r0 = useRef(null); const r1 = useRef(null); const r2 = useRef(null); const r3 = useRef(null);
+  const refs = [r0, r1, r2, r3];
+
+  const handleChange = (i, e) => {
+    const digit = e.target.value.replace(/\D/g, "").slice(-1);
+    if (!digit) return;
+    const next = value.slice(0, i) + digit + value.slice(i + 1);
+    onChange(next);
+    if (i < 3) setTimeout(() => refs[i + 1].current?.focus(), 0);
+  };
+  const handleKeyDown = (i, e) => {
+    if (e.key === "Backspace") {
+      if (value[i]) { onChange(value.slice(0, i) + "" + value.slice(i + 1)); }
+      else if (i > 0) { refs[i - 1].current?.focus(); onChange(value.slice(0, i - 1) + "" + value.slice(i)); }
+    } else if (e.key === "ArrowLeft" && i > 0) refs[i - 1].current?.focus();
+    else if (e.key === "ArrowRight" && i < 3) refs[i + 1].current?.focus();
+  };
+  const handlePaste = (e) => {
+    const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+    if (p) { onChange(p.padEnd(4, value.slice(p.length)).slice(0, 4)); setTimeout(() => refs[Math.min(p.length, 3)].current?.focus(), 0); }
+    e.preventDefault();
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        {[0,1,2,3].map(i => (
+          <input key={i} ref={refs[i]}
+            type={show ? "text" : "password"} inputMode="numeric" maxLength={2}
+            value={value[i] || ""}
+            onChange={e => handleChange(i, e)} onKeyDown={e => handleKeyDown(i, e)}
+            onPaste={handlePaste} onFocus={e => e.target.select()}
+            style={{ flex: 1, height: 56, textAlign: "center", fontSize: 22, fontWeight: 700, borderRadius: 12,
+              border: `2px solid ${hasError ? "#EF5350" : value[i] ? "#1A1A1A" : "#ECEAE4"}`,
+              background: value[i] ? "#F0EDE6" : "#F9F8F5", outline: "none", fontFamily: "inherit", transition: "border-color 0.15s, background 0.15s" }} />
+        ))}
+      </div>
+      <button type="button" onClick={() => setShow(v => !v)} tabIndex={-1}
+        style={{ position: "absolute", right: -34, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#999", padding: 4 }}>
+        {show ? "🙈" : "👁"}
+      </button>
+    </div>
+  );
+}
+
 function SettingsPage({ role, currentUser, onLogout }) {
+  const [showPinModal, setShowPinModal] = useState(false);
+
   return (
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ marginBottom: 22 }}>
@@ -1972,6 +2108,10 @@ function SettingsPage({ role, currentUser, onLogout }) {
             <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{role} · {currentUser?.phone}</div>
           </div>
         </div>
+        <button className="btn" onClick={() => setShowPinModal(true)}
+          style={{ width: "100%", background: "#F7F6F2", color: "#1A1A1A", border: "1.5px solid #ECEAE4", borderRadius: 12, padding: "12px", fontSize: 13, fontWeight: 600, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          🔑 Change PIN
+        </button>
         <button className="btn" onClick={onLogout} style={{ width: "100%", background: "#1C1C1E", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "13px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           Sign Out
         </button>
@@ -1981,6 +2121,8 @@ function SettingsPage({ role, currentUser, onLogout }) {
         <div style={{ fontSize: 12, fontWeight: 600, color: "#A07850", marginBottom: 4 }}>API Connected</div>
         <div style={{ fontSize: 12, color: "#999" }}>Backend running on Railway</div>
       </div>
+
+      {showPinModal && <SettingsPinModal onClose={() => setShowPinModal(false)} />}
     </div>
   );
 }
@@ -2105,6 +2247,9 @@ function AddMemberModal({ onClose, onAdd }) {
         <button className="btn" onClick={handleSubmit} disabled={saving || !form.name} style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", opacity: !form.name ? 0.5 : 1 }}>
           {saving ? <><Spinner /> Adding…</> : "Add Member"}
         </button>
+        <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 10, textAlign: "center" }}>
+          A WhatsApp onboarding message will be sent to the member's phone.
+        </p>
       </div>
     </div>
   );
