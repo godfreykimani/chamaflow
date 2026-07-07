@@ -10,10 +10,8 @@ export default function LoginPage({ onLogin, loading, error }) {
   const [step,      setStep]      = useState("phone"); // "phone" | "pin"
   const [attempted, setAttempted] = useState(false);
 
-  const phoneRaw   = phone.replace(/[\s\-]/g, "");
-  // Normalize Kenyan local format (07XX / 01XX) to E.164 (+254XX)
-  const phoneClean = /^0[17]/.test(phoneRaw) ? "+254" + phoneRaw.slice(1) : phoneRaw;
-  const canNext    = phoneRaw.length >= 9;
+  const phoneClean = phone.replace(/[\s\-]/g, "");
+  const canNext    = phoneClean.length >= 9;
   const canLogin   = pin.length === 4;
 
   const handleKey = (digit) => {
