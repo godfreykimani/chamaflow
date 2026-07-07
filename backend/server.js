@@ -136,6 +136,7 @@ db.exec(`
 
 // Add transcript column if meetings table was created before this feature
 try { db.exec("ALTER TABLE meetings ADD COLUMN transcript TEXT"); } catch {}
+try { db.exec("ALTER TABLE meetings ADD COLUMN ai_summary TEXT"); } catch {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS meeting_endorsements (
@@ -158,6 +159,46 @@ const notFound = (res, what)             => fail(res, `${what} not found`, 404);
 const audit    = (actorId, action, target=null, details=null) => {
   try { db.prepare("INSERT INTO audit_log (actor_id,action,target,details) VALUES (?,?,?,?)").run(actorId, action, target, details ? JSON.stringify(details) : null); } catch {}
 };
+
+// ─── AI Meeting Summary ───────────────────────────────────────────────────────
+
+async function generateMeetingSummary(meetingId, transcript) {
+  const GROQ_API_KEY = process.env.GROQ_API_KEY;
+  if (!GROQ_API_KEY || !transcript) return;
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [{
+          role: "user",
+          content: `You are a Chama (savings group) meeting secretary. Summarize the following meeting transcript concisely. Return ONLY a JSON object with these exact keys:
+{
+  "summary": "2-4 sentence overview of what was discussed",
+  "key_points": ["point 1", "point 2", ...],
+  "action_items": ["action 1", "action 2", ...]
+}
+
+Transcript:
+${transcript.slice(0, 8000)}`,
+        }],
+        temperature: 0.3,
+        max_tokens: 600,
+      }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return;
+    const parsed = JSON.parse(jsonMatch[0]);
+    db.prepare("UPDATE meetings SET ai_summary=? WHERE id=?").run(JSON.stringify(parsed), meetingId);
+    console.log("[AI Summary] generated for meeting", meetingId);
+  } catch (e) {
+    console.warn("[AI Summary] failed:", e.message);
+  }
+}
 
 // ─── WhatsApp ─────────────────────────────────────────────────────────────────
 
@@ -453,6 +494,66 @@ app.get("/api/meetings/:id", (req, res) => {
   });
 });
 
+// GET /api/meetings/:id/minutes — attendance + contribution stats for the panel
+app.get("/api/meetings/:id/minutes", requireAuth, (req, res) => {
+  const m = db.prepare("SELECT * FROM meetings WHERE id=?").get(req.params.id);
+  if (!m) return notFound(res, "Meeting");
+
+  // Derive contribution month string ("January 2025") from meeting.date
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  let month = null;
+  const dateStr = String(m.date);
+  const yearMatch = dateStr.match(/\d{4}/);
+  const foundMonth = MONTH_NAMES.find(mn => dateStr.includes(mn));
+  if (foundMonth && yearMatch) {
+    month = `${foundMonth} ${yearMatch[0]}`;
+  } else if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    const d = new Date(dateStr);
+    month = MONTH_NAMES[d.getUTCMonth()] + " " + d.getUTCFullYear();
+  }
+
+  const attendance = db.prepare(
+    "SELECT ma.status, me.id, me.name, me.shares, me.role FROM meeting_attendance ma JOIN members me ON ma.member_id=me.id WHERE ma.meeting_id=? ORDER BY me.name"
+  ).all(req.params.id);
+
+  const totalActive = db.prepare("SELECT COUNT(*) as c FROM members WHERE active=1").get().c;
+  const present  = attendance.filter(a => a.status === "present");
+  const apology  = attendance.filter(a => a.status === "apology");
+  const recorded = attendance.length;
+
+  let contributions = [];
+  if (month) {
+    contributions = db.prepare(
+      "SELECT c.type, c.amount, c.status, me.name as member_name FROM contributions c JOIN members me ON c.member_id=me.id WHERE c.month=? ORDER BY c.type, me.name"
+    ).all(month);
+  }
+
+  const confirmed  = contributions.filter(c => c.status === "Confirmed");
+  const totalCollected  = confirmed.reduce((s, c) => s + c.amount, 0);
+  const totalContribs   = contributions.filter(c => c.type === "Contribution").reduce((s, c) => s + c.amount, 0);
+  const totalFines      = contributions.filter(c => c.type === "Fine").reduce((s, c) => s + c.amount, 0);
+  const totalLateness   = contributions.filter(c => c.type === "Lateness").reduce((s, c) => s + c.amount, 0);
+
+  ok(res, {
+    month,
+    ai_summary: m.ai_summary ? JSON.parse(m.ai_summary) : null,
+    attendance: {
+      present, apology,
+      present_count:  present.length,
+      apology_count:  apology.length,
+      absent_count:   Math.max(0, totalActive - recorded),
+      total_members:  totalActive,
+    },
+    contributions: {
+      items: contributions,
+      total_collected: totalCollected,
+      total_contributions: totalContribs,
+      total_fines: totalFines,
+      total_lateness: totalLateness,
+    },
+  });
+});
+
 app.post("/api/meetings", requireAdmin, (req, res) => {
   const {date,location,agenda=""} = req.body;
   if (!date||!location) return fail(res,"date and location required");
@@ -589,6 +690,7 @@ app.post("/api/meetings/:id/transcript", requireAdmin, audioUpload.single("audio
     db.prepare("UPDATE meetings SET transcript=? WHERE id=?").run(transcript, req.params.id);
     audit(req.user.id, "TRANSCRIBE_MEETING", `meeting:${req.params.id}`, { provider });
     ok(res, { transcript, provider });
+    generateMeetingSummary(req.params.id, transcript).catch(e => console.warn("[AI Summary]", e.message));
   } catch (e) {
     if (req.file?.path) fs.unlink(req.file.path, () => {});
     return fail(res, e.message || "Transcription failed");

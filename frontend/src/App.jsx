@@ -475,7 +475,7 @@ function ChamaFlow({ onLogout }) {
               </div>
             )}
 
-            <div style={{ maxWidth: viewMode === "desktop" ? 960 : "none", padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
+            <div style={{ padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
               {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} />}
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
@@ -2150,7 +2150,17 @@ function SettingsPage({ role, currentUser, onLogout, memberCount }) {
 // ── Transcript Side Panel (desktop) ──────────────────────────────────────────
 
 function TranscriptPanel({ meeting, onClose }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied]     = useState(false);
+  const [minutes, setMinutes]   = useState(null);
+  const [loadingMin, setLoadingMin] = useState(true);
+
+  useEffect(() => {
+    setLoadingMin(true);
+    api.getMeetingMinutes(meeting.id)
+      .then(setMinutes)
+      .catch(() => {})
+      .finally(() => setLoadingMin(false));
+  }, [meeting.id]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(meeting.transcript || "").then(() => {
@@ -2159,20 +2169,19 @@ function TranscriptPanel({ meeting, onClose }) {
     });
   };
 
-  const wordCount = meeting.transcript
-    ? meeting.transcript.trim().split(/\s+/).length
-    : 0;
+  const wordCount = meeting.transcript ? meeting.transcript.trim().split(/\s+/).length : 0;
+  const fmt = (n) => `KES ${Number(n || 0).toLocaleString()}`;
 
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.18)", zIndex: 200 }} />
       <div className="slide-right" style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: 460,
-        background: "#fff", zIndex: 201, display: "flex", flexDirection: "column",
-        boxShadow: "-6px 0 32px rgba(0,0,0,0.10)",
+        position: "fixed", top: 0, right: 0, bottom: 0, width: 500,
+        background: "#F9F8F5", zIndex: 201, display: "flex", flexDirection: "column",
+        boxShadow: "-6px 0 32px rgba(0,0,0,0.12)",
       }}>
         {/* Header */}
-        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ECEAE4" }}>
+        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ECEAE4", background: "#fff" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.3px" }}>{meeting.date}</div>
@@ -2195,24 +2204,122 @@ function TranscriptPanel({ meeting, onClose }) {
           )}
         </div>
 
-        {/* Transcript body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 24px" }}>
-          {meeting.transcript ? (
-            <p style={{ margin: 0, fontSize: 14, color: "#1A1A1A", lineHeight: 1.85, whiteSpace: "pre-wrap", fontFamily: "'DM Sans', sans-serif" }}>
-              {meeting.transcript}
-            </p>
-          ) : (
-            <div style={{ textAlign: "center", paddingTop: 80, color: "#CCC" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🎙</div>
-              <div style={{ fontSize: 13, color: "#999" }}>No transcript for this meeting yet.</div>
-              <div style={{ fontSize: 11, color: "#BBB", marginTop: 4 }}>Use the AI Recorder to generate one.</div>
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 32px" }}>
+
+          {/* ── AI Summary ── */}
+          {!loadingMin && minutes?.ai_summary && (
+            <div style={{ background: "#1A1A1A", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#C8A97E", letterSpacing: 0.8, marginBottom: 10 }}>AI MEETING SUMMARY</div>
+              <p style={{ margin: 0, fontSize: 13, color: "#F0EDE6", lineHeight: 1.7 }}>{minutes.ai_summary.summary}</p>
+              {minutes.ai_summary.key_points?.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "#888", marginBottom: 6 }}>KEY POINTS</div>
+                  {minutes.ai_summary.key_points.map((p, i) => (
+                    <div key={i} style={{ fontSize: 12, color: "#D0CEC8", marginBottom: 4, paddingLeft: 12, borderLeft: "2px solid #333" }}>{p}</div>
+                  ))}
+                </div>
+              )}
+              {minutes.ai_summary.action_items?.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "#888", marginBottom: 6 }}>ACTION ITEMS</div>
+                  {minutes.ai_summary.action_items.map((a, i) => (
+                    <div key={i} style={{ fontSize: 12, color: "#D0CEC8", marginBottom: 4, display: "flex", gap: 6 }}>
+                      <span style={{ color: "#C8A97E" }}>→</span>{a}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          {/* ── Attendance & Financials ── */}
+          {!loadingMin && minutes && (
+            <>
+              {/* Stats row */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: "Present", value: minutes.attendance.present_count, sub: `of ${minutes.attendance.total_members}`, color: "#2E7D32", bg: "#E8F5E9" },
+                  { label: "Apology", value: minutes.attendance.apology_count, sub: "members", color: "#E65100", bg: "#FFF3E0" },
+                  { label: "Absent",  value: minutes.attendance.absent_count,  sub: "members", color: "#C62828", bg: "#FFEBEE" },
+                ].map(s => (
+                  <div key={s.label} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "#1A1A1A", marginTop: 2 }}>{s.label}</div>
+                    <div style={{ fontSize: 10, color: "#BBB" }}>{s.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Financial stats */}
+              <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 10 }}>FINANCIALS · {minutes.month || "—"}</div>
+                {[
+                  { label: "Contributions", value: minutes.contributions.total_contributions, color: "#1565C0" },
+                  { label: "Fines",         value: minutes.contributions.total_fines,         color: "#E65100" },
+                  { label: "Lateness",      value: minutes.contributions.total_lateness,      color: "#E65100" },
+                  { label: "Total Collected (Confirmed)", value: minutes.contributions.total_collected, color: "#2E7D32", bold: true },
+                ].map(row => (
+                  <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #F5F4F0" }}>
+                    <div style={{ fontSize: 12, color: "#666", fontWeight: row.bold ? 600 : 400 }}>{row.label}</div>
+                    <div style={{ fontSize: 12, fontWeight: row.bold ? 700 : 500, color: row.color }}>{fmt(row.value)}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Present members list */}
+              {minutes.attendance.present.length > 0 && (
+                <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 10 }}>MEMBERS PRESENT</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {minutes.attendance.present.map(m => (
+                      <span key={m.id} style={{ fontSize: 11, background: "#F0EDE6", color: "#1A1A1A", borderRadius: 6, padding: "4px 8px", fontWeight: 500 }}>{m.name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contributions list */}
+              {minutes.contributions.items.length > 0 && (
+                <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 10 }}>CONTRIBUTIONS</div>
+                  {minutes.contributions.items.map((c, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #F9F8F5" }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: "#1A1A1A" }}>{c.member_name}</div>
+                        <div style={{ fontSize: 10, color: "#999" }}>{c.type}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: c.type === "Contribution" ? "#1565C0" : "#E65100" }}>{fmt(c.amount)}</div>
+                        <div style={{ fontSize: 10, color: c.status === "Confirmed" ? "#2E7D32" : "#999" }}>{c.status}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Raw Transcript ── */}
+          <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 12 }}>RAW TRANSCRIPT</div>
+            {meeting.transcript ? (
+              <p style={{ margin: 0, fontSize: 13, color: "#1A1A1A", lineHeight: 1.85, whiteSpace: "pre-wrap", fontFamily: "'DM Sans', sans-serif" }}>
+                {meeting.transcript}
+              </p>
+            ) : (
+              <div style={{ textAlign: "center", padding: "48px 0", color: "#CCC" }}>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>🎙</div>
+                <div style={{ fontSize: 13, color: "#999" }}>No transcript yet.</div>
+                <div style={{ fontSize: 11, color: "#BBB", marginTop: 4 }}>Use the AI Recorder to generate one.</div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
         {meeting.transcript && (
-          <div style={{ padding: "12px 24px", borderTop: "1px solid #F5F4F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ padding: "12px 24px", borderTop: "1px solid #ECEAE4", background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 10, color: "#BBB" }}>{wordCount.toLocaleString()} words · AI transcribed</div>
             <div style={{ fontSize: 10, color: "#BBB" }}>{meeting.status}</div>
           </div>

@@ -105,6 +105,7 @@ export const uploadProof = (id, file) => {
 
 export const getMeetings = () => request("/meetings");
 export const getMeeting  = (id) => request(`/meetings/${id}`);
+export const getMeetingMinutes = (id) => request(`/meetings/${id}/minutes`);
 
 export const addMeeting = (body) =>
   request("/meetings", { method: "POST", body: JSON.stringify(body) });
