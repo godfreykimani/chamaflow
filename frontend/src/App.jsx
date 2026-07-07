@@ -150,6 +150,7 @@ function ChamaFlow({ onLogout }) {
   const [loading,          setLoading]          = useState({});
   const [toast,            setToast]            = useState(null);
   const [selectedMeeting,  setSelectedMeeting]  = useState(null);
+  const [transcriptMeeting, setTranscriptMeeting] = useState(null);
   const [addMemberModal,   setAddMemberModal]   = useState(false);
   const [editMember,       setEditMember]       = useState(null);
   const [recordForm,       setRecordForm]       = useState({ member_id: "", type: "Contribution", month: CURRENT_MONTH, amount: "5000", method: "M-Pesa", ref: "", confirmed: false });
@@ -357,15 +358,17 @@ function ChamaFlow({ onLogout }) {
   return (
     <div style={{ background: "#EDEBE6", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
-        @keyframes fadeUp  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-        @keyframes toastIn { from{transform:translateX(120%)} to{transform:translateX(0)} }
-        @keyframes spin    { to{transform:rotate(360deg)} }
-        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-        @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
-        .fade-up  { animation: fadeUp 0.3s ease both; }
-        .slide-up { animation: slideUp 0.3s cubic-bezier(.4,0,.2,1) forwards; }
-        .toast-in { animation: toastIn 0.3s ease forwards; }
+        @keyframes fadeUp    { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideUp   { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        @keyframes slideRight{ from{transform:translateX(100%)} to{transform:translateX(0)} }
+        @keyframes toastIn   { from{transform:translateX(120%)} to{transform:translateX(0)} }
+        @keyframes spin      { to{transform:rotate(360deg)} }
+        @keyframes shimmer   { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes pulse     { 0%,100%{opacity:1} 50%{opacity:.4} }
+        .fade-up    { animation: fadeUp 0.3s ease both; }
+        .slide-up   { animation: slideUp 0.3s cubic-bezier(.4,0,.2,1) forwards; }
+        .slide-right{ animation: slideRight 0.28s cubic-bezier(.4,0,.2,1) forwards; }
+        .toast-in   { animation: toastIn 0.3s ease forwards; }
         .nav-btn:hover { background: rgba(0,0,0,0.04); }
         .card:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(0,0,0,0.1)!important; transition:all 0.2s; }
         .btn:hover  { filter:brightness(1.06); transform:translateY(-1px); }
@@ -465,7 +468,7 @@ function ChamaFlow({ onLogout }) {
             <div style={{ maxWidth: viewMode === "desktop" ? 960 : "none", padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
               {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} />}
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} selectStyle={selectStyle} />}
-              {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} showToast={showToast} onRefresh={loadMeetings} />}
+              {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} />}
               {page === "report"  && isAdmin && <AnnualReportPage report={annualReport} loading={loading.report} year={reportYear} setYear={setReportYear} />}
@@ -494,8 +497,9 @@ function ChamaFlow({ onLogout }) {
 
       {/* Modals & Overlays */}
 
-      {selectedMeeting && <PDFModal meeting={selectedMeeting} members={members} onClose={() => setSelectedMeeting(null)} />}
-      {addMemberModal  && <AddMemberModal onClose={() => setAddMemberModal(false)} onAdd={handleAddMember} members={members} />}
+      {selectedMeeting   && <PDFModal meeting={selectedMeeting} members={members} onClose={() => setSelectedMeeting(null)} />}
+      {transcriptMeeting && viewMode === "desktop" && <TranscriptPanel meeting={transcriptMeeting} onClose={() => setTranscriptMeeting(null)} />}
+      {addMemberModal    && <AddMemberModal onClose={() => setAddMemberModal(false)} onAdd={handleAddMember} members={members} />}
       {editMember      && <EditMemberModal member={editMember} onClose={() => setEditMember(null)} onSave={handleEditMember} />}
 
       {/* Toast */}
@@ -783,7 +787,7 @@ function Chip({ label, onRemove, dark, bg, color, border }) {
 
 // ── Meetings Page ─────────────────────────────────────────────────────────────
 
-function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeeting, showToast, onRefresh }) {
+function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeeting, setTranscriptMeeting, showToast, onRefresh, viewMode }) {
   const [showRec,        setShowRec]        = useState(false);
   const [recMonth,       setRecMonth]       = useState("");
   const [recording,      setRecording]      = useState(false);
@@ -1069,7 +1073,8 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
 
             {/* Action buttons */}
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn" onClick={() => setSelectedMeeting(m)}
+              <button className="btn"
+                onClick={() => viewMode === "desktop" ? setTranscriptMeeting(m) : setSelectedMeeting(m)}
                 style={{ flex: 2, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 600 }}>
                 📄 View Minutes
               </button>
@@ -2124,6 +2129,81 @@ function SettingsPage({ role, currentUser, onLogout }) {
 
       {showPinModal && <SettingsPinModal onClose={() => setShowPinModal(false)} />}
     </div>
+  );
+}
+
+// ── Transcript Side Panel (desktop) ──────────────────────────────────────────
+
+function TranscriptPanel({ meeting, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(meeting.transcript || "").then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const wordCount = meeting.transcript
+    ? meeting.transcript.trim().split(/\s+/).length
+    : 0;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.18)", zIndex: 200 }} />
+      <div className="slide-right" style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: 460,
+        background: "#fff", zIndex: 201, display: "flex", flexDirection: "column",
+        boxShadow: "-6px 0 32px rgba(0,0,0,0.10)",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ECEAE4" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.3px" }}>{meeting.date}</div>
+              <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{meeting.location}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {meeting.transcript && (
+                <button onClick={handleCopy} style={{ background: copied ? "#E8F5E9" : "#F0EEE8", color: copied ? "#2E7D32" : "#555", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
+                  {copied ? "✓ Copied" : "⎘ Copy"}
+                </button>
+              )}
+              <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#BBB", cursor: "pointer", lineHeight: 1 }}>✕</button>
+            </div>
+          </div>
+          {(meeting.proposer_name || meeting.seconder_name) && (
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              {meeting.proposer_name && <span style={{ fontSize: 10, background: "#E8F5E9", color: "#2E7D32", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>📝 {meeting.proposer_name}</span>}
+              {meeting.seconder_name && <span style={{ fontSize: 10, background: "#E3F2FD", color: "#1565C0", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>🤝 {meeting.seconder_name}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Transcript body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 24px" }}>
+          {meeting.transcript ? (
+            <p style={{ margin: 0, fontSize: 14, color: "#1A1A1A", lineHeight: 1.85, whiteSpace: "pre-wrap", fontFamily: "'DM Sans', sans-serif" }}>
+              {meeting.transcript}
+            </p>
+          ) : (
+            <div style={{ textAlign: "center", paddingTop: 80, color: "#CCC" }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🎙</div>
+              <div style={{ fontSize: 13, color: "#999" }}>No transcript for this meeting yet.</div>
+              <div style={{ fontSize: 11, color: "#BBB", marginTop: 4 }}>Use the AI Recorder to generate one.</div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {meeting.transcript && (
+          <div style={{ padding: "12px 24px", borderTop: "1px solid #F5F4F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 10, color: "#BBB" }}>{wordCount.toLocaleString()} words · AI transcribed</div>
+            <div style={{ fontSize: 10, color: "#BBB" }}>{meeting.status}</div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
