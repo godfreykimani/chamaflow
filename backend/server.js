@@ -721,13 +721,9 @@ app.post("/api/meetings/:id/transcript", requireAdmin, audioUpload.single("audio
       const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
       if (!HF_API_KEY) { fs.unlink(req.file.path, ()=>{}); return fail(res, "HUGGINGFACE_API_KEY not configured on server"); }
 
-      const form = new FormData();
-      form.append("file", blob, req.file.originalname || "recording.webm");
-      form.append("model", "openai/whisper-large-v3-turbo");
-
       const hfRes = await fetch(
-        "https://router.huggingface.co/hf-inference/models/openai/whisper-large-v3-turbo/v1/audio/transcriptions",
-        { method: "POST", headers: { Authorization: `Bearer ${HF_API_KEY}` }, body: form }
+        "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo",
+        { method: "POST", headers: { Authorization: `Bearer ${HF_API_KEY}`, "Content-Type": req.file.mimetype || "audio/webm" }, body: audioData }
       );
       fs.unlink(req.file.path, () => {});
       if (!hfRes.ok) { const t = await hfRes.text(); return fail(res, `HuggingFace API error: ${t}`); }
