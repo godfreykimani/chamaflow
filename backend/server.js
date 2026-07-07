@@ -298,7 +298,7 @@ app.post("/api/auth/login", async (req, res) => {
   const { phone, pin } = req.body;
   if (!phone || !pin) return fail(res, "Phone and PIN are required");
   const cleanPhone = String(phone).replace(/[\s\-]/g, "");
-  const rlKey = `login:${req.ip}:${cleanPhone}`;
+  const rlKey = `login:${cleanPhone}`;
   if (!rateLimitCheck(rlKey)) return fail(res, "Too many attempts — try again in 15 minutes", 429);
   const member = db.prepare("SELECT * FROM members WHERE phone=?").get(cleanPhone);
   if (!member)         return fail(res, "Phone number not registered", 404);
