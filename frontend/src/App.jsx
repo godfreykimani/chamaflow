@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as api from "./api.js";
 import LoginPage    from "./LoginPage.jsx";
 import ChangePinPage from "./ChangePinPage.jsx";
@@ -917,10 +918,10 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
       </div>
 
       {/* AI Recorder Modal — admin only */}
-      {showRec && isAdmin && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      {showRec && isAdmin && createPortal(
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={e => { if (e.target === e.currentTarget && !recording && !transcribing) { setShowRec(false); setRecMonth(""); } }}>
-          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 28, width: "100%", maxWidth: 420 }} className="fade-up">
+          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 28, width: "100%", maxWidth: 670 }} className="fade-up">
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#F7F6F2" }}>🎙 AI Meeting Recorder</div>
@@ -988,7 +989,8 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
               Audio transcribed by {aiProvider === "huggingface" ? "HuggingFace Whisper Turbo" : "Groq Whisper Large v3"} and saved to the meeting
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Meeting cards — newest first */}
