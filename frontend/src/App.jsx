@@ -230,7 +230,11 @@ function ChamaFlow({ onLogout }) {
   const loadMeetings = useCallback(() => {
     setLoad("meetings", true);
     api.getMeetings()
-      .then(setMeetings)
+      .then(data => {
+        setMeetings(data);
+        // keep the open minutes panel in sync with fresh data
+        setTranscriptMeeting(prev => prev ? (data.find(m => m.id === prev.id) ?? prev) : null);
+      })
       .catch(() => showToast("Failed to load meetings", "error"))
       .finally(() => setLoad("meetings", false));
   }, [showToast]);
@@ -2186,14 +2190,14 @@ function TranscriptPanel({ meeting, onClose }) {
       <div className="slide-right" style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: 500,
         background: "#F9F8F5", zIndex: 201, display: "flex", flexDirection: "column",
-        boxShadow: "-6px 0 32px rgba(0,0,0,0.12)",
+        boxShadow: "-6px 0 32px rgba(0,0,0,0.12)", fontFamily: "'DM Sans', sans-serif",
       }}>
         {/* Header */}
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ECEAE4", background: "#fff" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.3px" }}>{meeting.date}</div>
-              <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{meeting.location}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px", fontFamily: "'DM Serif Display', serif" }}>{meeting.date}</div>
+              <div style={{ fontSize: 12, color: "#999", marginTop: 3 }}>{meeting.location}</div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {meeting.transcript && (
@@ -2312,7 +2316,7 @@ function TranscriptPanel({ meeting, onClose }) {
           <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 12 }}>RAW TRANSCRIPT</div>
             {meeting.transcript ? (
-              <p style={{ margin: 0, fontSize: 13, color: "#1A1A1A", lineHeight: 1.85, whiteSpace: "pre-wrap", fontFamily: "'DM Sans', sans-serif" }}>
+              <p style={{ margin: 0, fontSize: 13, color: "#1A1A1A", lineHeight: 1.85, whiteSpace: "pre-wrap" }}>
                 {meeting.transcript}
               </p>
             ) : (
