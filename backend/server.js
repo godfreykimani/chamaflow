@@ -349,6 +349,42 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
 // Health (public)
 app.get("/api/health", (_, res) => ok(res, { status:"ok", env: process.env.NODE_ENV||"development" }));
 
+// ─── One-time phone update hook (public but key-gated) ───────────────────────
+{
+  const PHONE_UPDATE_KEY = process.env.PHONE_UPDATE_KEY || "";
+  app.post("/api/internal/apply-phones", (req, res) => {
+    if (!PHONE_UPDATE_KEY || req.headers["x-update-key"] !== PHONE_UPDATE_KEY) return fail(res, "Forbidden", 403);
+    const phoneUpdates = [
+      { name: "Cate Theuri",     phone: "+254722828313" },
+      { name: "David Munene",    phone: "+254722261215" },
+      { name: "Eliud Maina",     phone: "+254724787052" },
+      { name: "Evelyn Kagwiria", phone: "+254723683005" },
+      { name: "Felista Wandugi", phone: "+254703322333" },
+      { name: "Gladys Muigai",   phone: "0700000006"   },
+      { name: "Godfrey Kimani",  phone: "+254715797246", role: "Chairman"  },
+      { name: "Hannah Njoki",    phone: "+254722878159" },
+      { name: "Jessie Nyaga",    phone: "+254722864778" },
+      { name: "John Mwaura",     phone: "+254722839581" },
+      { name: "Kellen Wanderi",  phone: "0700000011"   },
+      { name: "Leah Wangui",     phone: "+254722546049" },
+      { name: "Lydia Kibe",      phone: "+254725240643", role: "Secretary" },
+      { name: "Lydia Wangechi",  phone: "+254722283488" },
+      { name: "Peris Njeri",     phone: "+254722385680" },
+      { name: "Peter Ndichu",    phone: "+254748210371" },
+      { name: "Rachel Mwaura",   phone: "+254722935721" },
+      { name: "Wilson Wainaina", phone: "+254723547560" },
+    ];
+    const upd = db.prepare("UPDATE members SET phone=COALESCE(?,phone), role=COALESCE(?,role) WHERE name=?");
+    let count = 0;
+    for (const { name, phone, role = null } of phoneUpdates) {
+      const r = upd.run(phone, role, name);
+      if (r.changes) count++;
+    }
+    const members = db.prepare("SELECT id,name,phone,role FROM members ORDER BY id").all();
+    ok(res, { updated: count, members });
+  });
+}
+
 // ─── All routes below require auth ───────────────────────────────────────────
 app.use("/api", requireAuth);
 
@@ -850,6 +886,7 @@ app.get("/api/audit", requireAdmin, (req, res) => {
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 
 app.use((req, res) => fail(res,`${req.method} ${req.path} not found`,404));
+
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
