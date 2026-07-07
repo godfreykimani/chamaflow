@@ -750,6 +750,7 @@ app.post("/api/meetings/:id/transcript", requireAdmin, audioUpload.single("audio
     ok(res, { transcript, provider });
     generateMeetingSummary(req.params.id, transcript).catch(e => console.warn("[AI Summary]", e.message));
   } catch (e) {
+    console.error("[Transcription error]", e.cause || e.message, e.stack?.split("\n")[1]);
     if (req.file?.path) fs.unlink(req.file.path, () => {});
     return fail(res, e.message || "Transcription failed");
   }
