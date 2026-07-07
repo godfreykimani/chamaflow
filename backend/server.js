@@ -151,6 +151,32 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_endorse_meeting ON meeting_endorsements(meeting_id);
 `);
 
+// ─── Member phone/role migrations ────────────────────────────────────────────
+{
+  const phoneUpdates = [
+    { name: "Cate Theuri",     phone: "+254722828313", role: "Member"    },
+    { name: "David Munene",    phone: "+254722261215", role: "Member"    },
+    { name: "Eliud Maina",     phone: "+254724787052", role: "Member"    },
+    { name: "Evelyn Kagwiria", phone: "+254723683005", role: "Member"    },
+    { name: "Felista Wandugi", phone: "+254703322333", role: "Member"    },
+    { name: "Gladys Muigai",   phone: "0700000006",   role: "Member"    },
+    { name: "Godfrey Kimani",  phone: "+254715797246", role: "Chairman"  },
+    { name: "Hannah Njoki",    phone: "+254722878159", role: "Member"    },
+    { name: "Jessie Nyaga",    phone: "+254722864778", role: "Member"    },
+    { name: "John Mwaura",     phone: "+254722839581", role: "Member"    },
+    { name: "Kellen Wanderi",  phone: "0700000011",   role: "Member"    },
+    { name: "Leah Wangui",     phone: "+25422546049",  role: "Member"    },
+    { name: "Lydia Kibe",      phone: "+25425240643",  role: "Secretary" },
+    { name: "Lydia Wangechi",  phone: "+254722283488", role: "Member"    },
+    { name: "Peris Njeri",     phone: "+254722385680", role: "Member"    },
+    { name: "Peter Ndichu",    phone: "+254748210371", role: "Member"    },
+    { name: "Rachel Mwaura",   phone: "+25422935721",  role: "Member"    },
+    { name: "Wilson Wainaina", phone: "+254722261215", role: "Member"    },
+  ];
+  const upd = db.prepare("UPDATE members SET phone=?, role=? WHERE name=?");
+  for (const { name, phone, role } of phoneUpdates) upd.run(phone, role, name);
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const ok       = (res, data, status=200) => res.status(status).json({ ok:true, data });
