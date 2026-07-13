@@ -201,7 +201,7 @@ function ChamaFlow({ onLogout }) {
   }, []);
 
   // ── Fetch dashboard when user is set ──
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
     if (!currentUser) return;
     setLoad("dashboard", true);
     api.getDashboard(currentUser.id)
@@ -209,6 +209,8 @@ function ChamaFlow({ onLogout }) {
       .catch(() => {})
       .finally(() => setLoad("dashboard", false));
   }, [currentUser]);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
   // ── Fetch contributions when on contributions page or filters change ──
   useEffect(() => {
@@ -481,7 +483,7 @@ function ChamaFlow({ onLogout }) {
             )}
 
             <div style={{ padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
-              {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} />}
+              {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} />}
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
@@ -530,7 +532,7 @@ function ChamaFlow({ onLogout }) {
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 
-function DashboardPage({ dashboard, loading, member, role, setPage, viewMode }) {
+function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh }) {
   const isDesktop = viewMode === "desktop";
   if (loading) return (
     <div style={{ padding: isDesktop ? 0 : 20 }}>
@@ -549,6 +551,10 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode }) 
   const heroCard = (
     <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 24, marginBottom: 14, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(200,169,126,0.1)" }} />
+      <button onClick={onRefresh} disabled={loading} title="Refresh balance"
+        style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#C8A97E", fontSize: 15, transition: "background 0.15s", zIndex: 1 }}>
+        <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
+      </button>
       <div style={{ fontSize: 11, color: "#666", letterSpacing: 1, marginBottom: 8 }}>TOTAL SAVINGS</div>
       <div style={{ fontSize: 34, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-1px", fontFamily: "'DM Serif Display', serif" }}>{fmt(totalSavings)}</div>
       <div style={{ marginTop: 16, display: "flex", gap: 16 }}>

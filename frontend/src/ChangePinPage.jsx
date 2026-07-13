@@ -1,85 +1,37 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 
-// Four individual digit boxes — auto-advance, backspace-back, show/hide toggle
-function PinBoxes({ value, onChange, hasError }) {
+function PinField({ label, value, onChange, hasError, errorText, autoFocus }) {
   const [show, setShow] = useState(false);
-  // C3: individual declarations — hooks must not be called inside array literals
-  const r0 = useRef(null); const r1 = useRef(null); const r2 = useRef(null); const r3 = useRef(null);
-  const refs = [r0, r1, r2, r3];
-
-  const handleChange = (i, e) => {
-    const digit = e.target.value.replace(/\D/g, "").slice(-1);
-    if (!digit) return;
-    const next = value.slice(0, i) + digit + value.slice(i + 1);
-    onChange(next);
-    if (i < 3) setTimeout(() => refs[i + 1].current?.focus(), 0);
-  };
-
-  const handleKeyDown = (i, e) => {
-    if (e.key === "Backspace") {
-      if (value[i]) {
-        onChange(value.slice(0, i) + "" + value.slice(i + 1));
-      } else if (i > 0) {
-        refs[i - 1].current?.focus();
-        onChange(value.slice(0, i - 1) + "" + value.slice(i));
-      }
-    } else if (e.key === "ArrowLeft" && i > 0) {
-      refs[i - 1].current?.focus();
-    } else if (e.key === "ArrowRight" && i < 3) {
-      refs[i + 1].current?.focus();
-    }
-  };
-
-  const handlePaste = (e) => {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
-    if (pasted) {
-      onChange(pasted.padEnd(4, value.slice(pasted.length)).slice(0, 4));
-      const focusIdx = Math.min(pasted.length, 3);
-      setTimeout(() => refs[focusIdx].current?.focus(), 0);
-    }
-    e.preventDefault();
-  };
-
   return (
-    <div style={{ position: "relative" }}>
-      <div style={{ display: "flex", gap: 8 }}>
-        {[0, 1, 2, 3].map(i => (
-          <input
-            key={i}
-            ref={refs[i]}
-            type={show ? "text" : "password"}
-            inputMode="numeric"
-            maxLength={2}
-            value={value[i] || ""}
-            onChange={e => handleChange(i, e)}
-            onKeyDown={e => handleKeyDown(i, e)}
-            onPaste={handlePaste}
-            onFocus={e => e.target.select()}
-            style={{
-              flex: 1,
-              height: 60,
-              textAlign: "center",
-              fontSize: 24,
-              fontWeight: 700,
-              borderRadius: 14,
-              border: `2px solid ${hasError ? "#EF5350" : value[i] ? "#1A1A1A" : "#ECEAE4"}`,
-              background: value[i] ? "#F0EDE6" : "#F9F8F5",
-              outline: "none",
-              fontFamily: "inherit",
-              transition: "border-color 0.15s, background 0.15s",
-            }}
-          />
-        ))}
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: hasError ? "#EF5350" : "#555", marginBottom: 8 }}>
+        {label}{errorText && <span style={{ fontWeight: 400, marginLeft: 6 }}>— {errorText}</span>}
       </div>
-      <button
-        type="button"
-        onClick={() => setShow(v => !v)}
-        style={{ position: "absolute", right: -36, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#999", padding: 4 }}
-        tabIndex={-1}
-        aria-label={show ? "Hide PIN" : "Show PIN"}
-      >
-        {show ? "🙈" : "👁"}
-      </button>
+      <div style={{ position: "relative" }}>
+        <input
+          type={show ? "text" : "password"}
+          inputMode="numeric"
+          maxLength={4}
+          value={value}
+          onChange={e => onChange(e.target.value.replace(/\D/g, "").slice(0, 4))}
+          autoFocus={autoFocus}
+          placeholder="••••"
+          style={{
+            width: "100%", height: 56, padding: "0 48px 0 18px",
+            fontSize: 24, fontWeight: 700, letterSpacing: 8,
+            borderRadius: 14, border: `2px solid ${hasError ? "#EF5350" : value.length === 4 ? "#1A1A1A" : "#ECEAE4"}`,
+            background: value ? "#F0EDE6" : "#F9F8F5",
+            outline: "none", fontFamily: "inherit",
+            transition: "border-color 0.15s, background 0.15s",
+            boxSizing: "border-box",
+          }}
+        />
+        <button type="button" onClick={() => setShow(v => !v)} tabIndex={-1}
+          style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#999", padding: 4 }}
+          aria-label={show ? "Hide PIN" : "Show PIN"}>
+          {show ? "🙈" : "👁"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -102,22 +54,10 @@ export default function ChangePinPage({ onSave, loading, error }) {
           Your default PIN is <strong style={{ color: "#1A1A1A" }}>1234</strong>. Choose a new 4-digit PIN to secure your account.
         </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 10 }}>Current PIN</div>
-          <PinBoxes value={current} onChange={setCurrent} />
-        </div>
-
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 10 }}>New PIN</div>
-          <PinBoxes value={next} onChange={setNext} />
-        </div>
-
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: mismatch ? "#EF5350" : "#555", marginBottom: 10 }}>
-            Confirm New PIN {mismatch && "— PINs don't match"}
-          </div>
-          <PinBoxes value={confirm} onChange={setConfirm} hasError={mismatch} />
-        </div>
+        <PinField label="Current PIN" value={current} onChange={setCurrent} autoFocus />
+        <PinField label="New PIN"     value={next}    onChange={setNext} />
+        <PinField label="Confirm New PIN" value={confirm} onChange={setConfirm}
+          hasError={mismatch} errorText={mismatch ? "PINs don't match" : undefined} />
 
         {error && (
           <div style={{ background: "#FBE9E7", borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#BF360C", fontWeight: 500 }}>
