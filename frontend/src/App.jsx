@@ -178,7 +178,7 @@ function MobileNav({ isAdmin, page, setPage, moreOpen, setMoreOpen }) {
               <button key={item.id} ref={el => btnRefs.current[i] = el}
                 onClick={() => { if (item.id === "__more__") { setMoreOpen(v => !v); } else { setMoreOpen(false); setPage(item.id); } }}
                 style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, border: "none", background: "transparent", padding: "7px 4px", borderRadius: 999, cursor: "pointer", color: isActive ? "#1A1A1A" : "#AAAAAA", transition: "color 0.15s", position: "relative", zIndex: 1, fontFamily: "inherit" }}>
-                <span style={{ fontSize: item.id === "__more__" ? 16 : 19, lineHeight: 1 }}>{item.icon}</span>
+                <span style={{ fontSize: item.id === "__more__" ? 18 : 22, lineHeight: 1 }}>{item.icon}</span>
                 <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 400, lineHeight: 1 }}>{item.label}</span>
               </button>
             );
