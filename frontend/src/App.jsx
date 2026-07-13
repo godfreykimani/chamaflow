@@ -2069,48 +2069,22 @@ function SettingsPinModal({ onClose }) {
   );
 }
 
-// Shared 4-box PIN input used in both SettingsPinModal and the full-page ChangePinPage
 function SettingsPinBoxes({ value, onChange, hasError }) {
   const [show, setShow] = useState(false);
-  const r0 = useRef(null); const r1 = useRef(null); const r2 = useRef(null); const r3 = useRef(null);
-  const refs = [r0, r1, r2, r3];
-
-  const handleChange = (i, e) => {
-    const digit = e.target.value.replace(/\D/g, "").slice(-1);
-    if (!digit) return;
-    const next = value.slice(0, i) + digit + value.slice(i + 1);
-    onChange(next);
-    if (i < 3) setTimeout(() => refs[i + 1].current?.focus(), 0);
-  };
-  const handleKeyDown = (i, e) => {
-    if (e.key === "Backspace") {
-      if (value[i]) { onChange(value.slice(0, i) + "" + value.slice(i + 1)); }
-      else if (i > 0) { refs[i - 1].current?.focus(); onChange(value.slice(0, i - 1) + "" + value.slice(i)); }
-    } else if (e.key === "ArrowLeft" && i > 0) refs[i - 1].current?.focus();
-    else if (e.key === "ArrowRight" && i < 3) refs[i + 1].current?.focus();
-  };
-  const handlePaste = (e) => {
-    const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
-    if (p) { onChange(p.padEnd(4, value.slice(p.length)).slice(0, 4)); setTimeout(() => refs[Math.min(p.length, 3)].current?.focus(), 0); }
-    e.preventDefault();
-  };
-
   return (
     <div style={{ position: "relative" }}>
-      <div style={{ display: "flex", gap: 8 }}>
-        {[0,1,2,3].map(i => (
-          <input key={i} ref={refs[i]}
-            type={show ? "text" : "password"} inputMode="numeric" maxLength={2}
-            value={value[i] || ""}
-            onChange={e => handleChange(i, e)} onKeyDown={e => handleKeyDown(i, e)}
-            onPaste={handlePaste} onFocus={e => e.target.select()}
-            style={{ flex: 1, height: 56, textAlign: "center", fontSize: 22, fontWeight: 700, borderRadius: 12,
-              border: `2px solid ${hasError ? "#EF5350" : value[i] ? "#1A1A1A" : "#ECEAE4"}`,
-              background: value[i] ? "#F0EDE6" : "#F9F8F5", outline: "none", fontFamily: "inherit", transition: "border-color 0.15s, background 0.15s" }} />
-        ))}
-      </div>
+      <input
+        type={show ? "text" : "password"} inputMode="numeric" maxLength={4}
+        value={value}
+        onChange={e => onChange(e.target.value.replace(/\D/g, "").slice(0, 4))}
+        placeholder="••••"
+        style={{ width: "100%", height: 52, padding: "0 44px 0 16px", fontSize: 22, fontWeight: 700, letterSpacing: 8,
+          borderRadius: 12, border: `2px solid ${hasError ? "#EF5350" : value.length === 4 ? "#1A1A1A" : "#ECEAE4"}`,
+          background: value ? "#F0EDE6" : "#F9F8F5", outline: "none", fontFamily: "inherit",
+          transition: "border-color 0.15s, background 0.15s", boxSizing: "border-box" }}
+      />
       <button type="button" onClick={() => setShow(v => !v)} tabIndex={-1}
-        style={{ position: "absolute", right: -34, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#999", padding: 4 }}>
+        style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#999", padding: 4 }}>
         {show ? "🙈" : "👁"}
       </button>
     </div>
