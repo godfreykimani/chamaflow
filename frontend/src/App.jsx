@@ -295,7 +295,7 @@ function ChamaFlow({ onLogout }) {
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
   // ── Fetch contributions when on contributions page or filters change ──
-  useEffect(() => {
+  const loadContributions = useCallback(() => {
     if (page !== "contributions") return;
     setLoad("contributions", true);
     const params = {
@@ -309,6 +309,8 @@ function ChamaFlow({ onLogout }) {
       .catch(() => showToast("Failed to load contributions", "error"))
       .finally(() => setLoad("contributions", false));
   }, [page, filterYear, filterStatus, filterMember, filterType, currentUser, isAdmin]);
+
+  useEffect(() => { loadContributions(); }, [loadContributions]);
 
   // ── Fetch meetings when on meetings page ──
   const loadMeetings = useCallback(() => {
@@ -566,7 +568,7 @@ function ChamaFlow({ onLogout }) {
 
             <div style={{ padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
               {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} />}
-              {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} />}
+              {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} />}
@@ -740,7 +742,7 @@ function QuickCard({ title, sub, icon, color, iconColor, onClick }) {
 
 // ── Contributions Page ────────────────────────────────────────────────────────
 
-function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle }) {
+function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh }) {
   const totalShares   = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
   const totalFines    = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
   const totalLateness = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
@@ -757,8 +759,12 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
       </div>
 
       {/* Summary hero */}
-      <div style={{ background: "linear-gradient(135deg,#1C1C1E,#2A2A2E)", borderRadius: 20, padding: 20, marginBottom: 14 }}>
-        <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 10 }}>{filterYear} TOTAL</div>
+      <div style={{ background: "linear-gradient(135deg,#1C1C1E,#2A2A2E)", borderRadius: 20, padding: 20, marginBottom: 14, position: "relative" }}>
+        <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh"
+          style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#C8A97E", fontSize: 20, transition: "background 0.15s", zIndex: 1 }}>
+          <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
+        </button>
+        <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 10, paddingRight: 44 }}>{filterYear} TOTAL</div>
         <div style={{ fontSize: 30, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-1px", marginBottom: 14 }}>{fmt(grandTotal)}</div>
         <div style={{ display: "flex", gap: 0 }}>
           {[["SHARES", `${totalShares} shares`, "#90CAF9"],["FINES", totalFines > 0 ? fmt(totalFines) : "—", "#FFAB91"],["LATENESS", totalLateness > 0 ? fmt(totalLateness) : "—", "#FFE082"]].map(([k,v,c],i) => (
