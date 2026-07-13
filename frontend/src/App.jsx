@@ -133,6 +133,7 @@ function ChamaFlow({ onLogout }) {
   // ── Navigation & layout ──
   const [page,     setPage]     = useState("dashboard");
   const [viewMode, setViewMode] = useState(() => window.innerWidth >= 640 ? "desktop" : "mobile");
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     const onResize = () => setViewMode(window.innerWidth >= 640 ? "desktop" : "mobile");
@@ -494,21 +495,67 @@ function ChamaFlow({ onLogout }) {
           </div>
 
           {/* Mobile bottom nav */}
-          {viewMode === "mobile" && (
-            <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#F7F6F2", borderTop: "1px solid #ECEAE4", display: "flex", padding: "8px 0 16px", zIndex: 100 }}>
-              {NAV_ITEMS.filter(n => isAdmin || !n.adminOnly).map(item => (
-                <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
-                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                  border: "none", background: "transparent", padding: "4px 2px", borderRadius: 8,
-                  color: page === item.id ? "#1A1A1A" : "#AAAAAA", transition: "color 0.15s",
-                }}>
-                  <span style={{ fontSize: 18 }}>{item.icon}</span>
-                  <span style={{ fontSize: 9, fontWeight: page === item.id ? 600 : 400 }}>{item.label}</span>
-                  {page === item.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#1A1A1A", marginTop: -1 }} />}
-                </button>
-              ))}
-            </div>
-            )}
+          {viewMode === "mobile" && (() => {
+            const PRIMARY_IDS = isAdmin
+              ? ["dashboard", "contributions", "meetings", "members"]
+              : ["dashboard", "contributions", "meetings", "members", "settings"];
+            const MORE_IDS = isAdmin ? ["record", "report", "settings"] : [];
+            const primaryItems = NAV_ITEMS.filter(n => PRIMARY_IDS.includes(n.id));
+            const moreItems    = NAV_ITEMS.filter(n => MORE_IDS.includes(n.id));
+            const moreActive   = moreItems.some(n => n.id === page);
+
+            return (
+              <>
+                <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#F7F6F2", borderTop: "1px solid #ECEAE4", display: "flex", padding: "8px 0 16px", zIndex: 100 }}>
+                  {primaryItems.map(item => (
+                    <button key={item.id} className="nav-btn" onClick={() => { setMoreOpen(false); setPage(item.id); }} style={{
+                      flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      border: "none", background: "transparent", padding: "4px 2px", borderRadius: 8,
+                      color: page === item.id ? "#1A1A1A" : "#AAAAAA", transition: "color 0.15s",
+                    }}>
+                      <span style={{ fontSize: 18 }}>{item.icon}</span>
+                      <span style={{ fontSize: 9, fontWeight: page === item.id ? 600 : 400 }}>{item.label}</span>
+                      {page === item.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#1A1A1A", marginTop: -1 }} />}
+                    </button>
+                  ))}
+                  {isAdmin && (
+                    <button className="nav-btn" onClick={() => setMoreOpen(v => !v)} style={{
+                      flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      border: "none", background: "transparent", padding: "4px 2px", borderRadius: 8,
+                      color: moreActive || moreOpen ? "#1A1A1A" : "#AAAAAA", transition: "color 0.15s",
+                    }}>
+                      <span style={{ fontSize: 18 }}>•••</span>
+                      <span style={{ fontSize: 9, fontWeight: moreActive || moreOpen ? 600 : 400 }}>More</span>
+                      {(moreActive || moreOpen) && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#1A1A1A", marginTop: -1 }} />}
+                    </button>
+                  )}
+                </div>
+
+                {/* "More" bottom sheet (admin only) */}
+                {moreOpen && (
+                  <>
+                    <div onClick={() => setMoreOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
+                    <div className="slide-up" style={{ position: "fixed", bottom: 64, left: 12, right: 12, background: "#1C1C1E", borderRadius: 20, padding: "8px 8px 4px", zIndex: 99, boxShadow: "0 -8px 32px rgba(0,0,0,0.2)" }}>
+                      <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, padding: "8px 12px 4px" }}>ADMIN TOOLS</div>
+                      {moreItems.map(item => (
+                        <button key={item.id} onClick={() => { setPage(item.id); setMoreOpen(false); }} style={{
+                          display: "flex", alignItems: "center", gap: 14, width: "100%", padding: "14px 16px",
+                          border: "none", background: page === item.id ? "rgba(200,169,126,0.15)" : "transparent",
+                          borderRadius: 14, color: page === item.id ? "#C8A97E" : "#CCC",
+                          fontSize: 14, fontWeight: page === item.id ? 600 : 400, cursor: "pointer",
+                          fontFamily: "inherit", textAlign: "left", marginBottom: 2,
+                        }}>
+                          <span style={{ fontSize: 20, opacity: page === item.id ? 1 : 0.7 }}>{item.icon}</span>
+                          {item.label}
+                          {page === item.id && <div style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "#C8A97E" }} />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
           </div>
         </div>
 
