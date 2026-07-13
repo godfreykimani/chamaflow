@@ -7,6 +7,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
     <style>
+      .refresh-btn { position: relative; }
+      .refresh-btn::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        right: 0;
+        background: #1A1A1A;
+        color: #F7F6F2;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 6px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s;
+        font-family: 'DM Sans', sans-serif;
+        letter-spacing: 0;
+      }
+      .refresh-btn:hover::after { opacity: 1; }
       @media (min-width: 640px) {
         .modal-card {
           position: fixed !important;

@@ -551,8 +551,8 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
   const heroCard = (
     <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 24, marginBottom: 14, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(200,169,126,0.1)" }} />
-      <button onClick={onRefresh} disabled={loading} title="Refresh balance"
-        style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#C8A97E", fontSize: 15, transition: "background 0.15s", zIndex: 1 }}>
+      <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh balance"
+        style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#C8A97E", fontSize: 20, transition: "background 0.15s", zIndex: 1 }}>
         <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
       </button>
       <div style={{ fontSize: 11, color: "#666", letterSpacing: 1, marginBottom: 8 }}>TOTAL SAVINGS</div>
@@ -572,8 +572,12 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
   );
 
   const monthlyCard = (
-    <div className="card" style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+    <div className="card" style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", position: "relative" }}>
+      <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh contributions"
+        style={{ position: "absolute", top: 14, right: 14, background: "rgba(0,0,0,0.04)", border: "none", borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#1A1A1A", fontSize: 20, transition: "background 0.15s", zIndex: 1 }}>
+        <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
+      </button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingRight: 36 }}>
         <div>
           <div style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>{CURRENT_MONTH}</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A" }}>{fmt(monthlyExpected)}</div>
