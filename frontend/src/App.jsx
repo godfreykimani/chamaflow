@@ -23,7 +23,7 @@ const TYPE_META = {
 };
 
 const NAV_ITEMS = [
-  { id: "dashboard",     label: "Dashboard",     icon: "⊞" },
+  { id: "dashboard",     label: "Home",          icon: "⊞" },
   { id: "contributions", label: "Contributions", icon: "◈" },
   { id: "meetings",      label: "Meetings",      icon: "◉" },
   { id: "record",        label: "Record",        icon: "⊕", adminOnly: true },
