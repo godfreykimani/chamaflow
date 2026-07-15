@@ -2248,6 +2248,7 @@ function TranscriptPanel({ meeting, onClose }) {
       .finally(() => setLoadingMin(false));
   }, [meeting.id]);
 
+  const transcript = freshMeeting.transcript || meeting.transcript;
   const fmt = (n) => `KES ${Number(n || 0).toLocaleString()}`;
 
   return (
@@ -2349,13 +2350,21 @@ function TranscriptPanel({ meeting, onClose }) {
 
               {/* 5 ── Action Items */}
               {minutes.ai_summary?.action_items?.length > 0 && (
-                <div style={{ background: "#1A1A1A", borderRadius: 12, padding: "16px 18px" }}>
+                <div style={{ background: "#1A1A1A", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#C8A97E", letterSpacing: 0.5, marginBottom: 12 }}>ACTION ITEMS</div>
                   {minutes.ai_summary.action_items.map((a, i) => (
                     <div key={i} style={{ fontSize: 14, color: "#D0CEC8", marginBottom: 8, display: "flex", gap: 10, lineHeight: 1.6 }}>
                       <span style={{ color: "#C8A97E", flexShrink: 0 }}>→</span>{a}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* 6 ── Full Transcript */}
+              {transcript && (
+                <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 14 }}>FULL TRANSCRIPT</div>
+                  <p style={{ margin: 0, fontSize: 14, color: "#1A1A1A", lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{transcript}</p>
                 </div>
               )}
             </>
