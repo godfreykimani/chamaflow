@@ -201,7 +201,7 @@ async function generateMeetingSummary(meetingId, transcript) {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{
           role: "user",
           content: `You are a Chama (savings group) meeting secretary. Analyse the following meeting transcript and return ONLY a JSON object with these exact keys:
@@ -213,10 +213,15 @@ async function generateMeetingSummary(meetingId, transcript) {
     "present": ["Full Name", ...],
     "absent": ["Full Name", ...],
     "apology": ["Full Name", ...]
-  }
+  },
+  "members_financial": [
+    { "name": "Full Name", "savings": 0, "penalty": 0 }
+  ]
 }
 
-For the attendance field, listen carefully for any roll-call, attendance, or register section in the transcript. Extract member names mentioned as present, absent, or sending apologies/apology. If no attendance section is found, return empty arrays.
+For attendance: listen for any roll-call or register section. Extract names as present, absent, or apology. Return empty arrays if none found.
+
+For members_financial: listen for any section where individual member contributions, savings, or penalties/fines are read out. Extract each member's name, their savings/contribution amount (number, 0 if not mentioned), and their penalty/fine amount (number, 0 if not mentioned). Return an empty array if no per-member financial data is found.
 
 Transcript:
 ${transcript.slice(0, 8000)}`,

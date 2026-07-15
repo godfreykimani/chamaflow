@@ -2351,7 +2351,48 @@ function TranscriptPanel({ meeting, onClose }) {
                 </div>
               )}
 
-              {/* 4 ── Key Points */}
+              {/* 4 ── AI-extracted member savings & penalties */}
+              {minutes.ai_summary?.members_financial?.length > 0 && (
+                <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px", marginBottom: 16, overflowX: "auto" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 12 }}>MEMBER SAVINGS & PENALTIES</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: "#F9F8F5" }}>
+                        {["#", "Member", "Savings (KES)", "Penalty (KES)"].map(h => (
+                          <th key={h} style={{ padding: "8px 10px", textAlign: h === "#" ? "center" : "left", fontWeight: 700, color: "#555", borderBottom: "2px solid #ECEAE4", whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {minutes.ai_summary.members_financial.map((row, i) => (
+                        <tr key={i} style={{ borderBottom: "1px solid #F5F4F0" }}>
+                          <td style={{ padding: "8px 10px", textAlign: "center", color: "#BBB", fontWeight: 500 }}>{i + 1}</td>
+                          <td style={{ padding: "8px 10px", fontWeight: 500, color: "#1A1A1A" }}>{row.name}</td>
+                          <td style={{ padding: "8px 10px", color: row.savings > 0 ? "#1565C0" : "#CCC", fontWeight: row.savings > 0 ? 600 : 400 }}>
+                            {row.savings > 0 ? Number(row.savings).toLocaleString() : "—"}
+                          </td>
+                          <td style={{ padding: "8px 10px", color: row.penalty > 0 ? "#E65100" : "#CCC", fontWeight: row.penalty > 0 ? 600 : 400 }}>
+                            {row.penalty > 0 ? Number(row.penalty).toLocaleString() : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: "#F9F8F5" }}>
+                        <td colSpan={2} style={{ padding: "9px 10px", fontWeight: 700, color: "#1A1A1A", fontSize: 12 }}>TOTAL</td>
+                        <td style={{ padding: "9px 10px", fontWeight: 700, color: "#1565C0" }}>
+                          {minutes.ai_summary.members_financial.reduce((s, r) => s + (Number(r.savings) || 0), 0).toLocaleString()}
+                        </td>
+                        <td style={{ padding: "9px 10px", fontWeight: 700, color: "#E65100" }}>
+                          {minutes.ai_summary.members_financial.reduce((s, r) => s + (Number(r.penalty) || 0), 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              {/* 5 ── Key Points */}
               {minutes.ai_summary?.key_points?.length > 0 && (
                 <div style={{ background: "#1A1A1A", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#C8A97E", letterSpacing: 0.5, marginBottom: 12 }}>KEY POINTS</div>
@@ -2361,7 +2402,7 @@ function TranscriptPanel({ meeting, onClose }) {
                 </div>
               )}
 
-              {/* 5 ── Action Items */}
+              {/* 6 ── Action Items */}
               {minutes.ai_summary?.action_items?.length > 0 && (
                 <div style={{ background: "#1A1A1A", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#C8A97E", letterSpacing: 0.5, marginBottom: 12 }}>ACTION ITEMS</div>
@@ -2373,7 +2414,7 @@ function TranscriptPanel({ meeting, onClose }) {
                 </div>
               )}
 
-              {/* 6 ── Full Transcript */}
+              {/* 7 ── Full Transcript */}
               {transcript && (
                 <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 14 }}>FULL TRANSCRIPT</div>
