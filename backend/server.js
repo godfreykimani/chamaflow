@@ -772,7 +772,24 @@ app.post("/api/meetings/:id/endorse", (req, res) => {
     db.prepare("INSERT INTO meeting_endorsements (meeting_id, member_id, type) VALUES (?,?,?)")
       .run(req.params.id, req.user.id, type);
     audit(req.user.id, "ENDORSE_MEETING", `meeting:${req.params.id}`, { type });
-    ok(res, { message: `Meeting ${type === "propose" ? "proposed" : "seconded"} successfully` });
+
+    // Auto-approve when both proposer and seconder are present
+    const counts = db.prepare(
+      "SELECT COUNT(*) AS total FROM meeting_endorsements WHERE meeting_id=? AND type IN ('propose','second')"
+    ).get(req.params.id);
+    let approved = false;
+    if (counts.total >= 2) {
+      db.prepare("UPDATE meetings SET status='Approved' WHERE id=? AND status != 'Approved'")
+        .run(req.params.id);
+      approved = true;
+    }
+
+    ok(res, {
+      message: approved
+        ? "Meeting endorsed and marked Approved!"
+        : `Meeting ${type === "propose" ? "proposed" : "seconded"} successfully`,
+      approved,
+    });
   } catch (e) {
     if (e.message?.includes("UNIQUE constraint")) {
       return fail(res, e.message.includes("meeting_id, type")

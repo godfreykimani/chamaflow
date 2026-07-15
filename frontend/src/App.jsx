@@ -1106,7 +1106,8 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
           .sort((a, b) => new Date(b.date) - new Date(a.date))
           .map((m, i) => {
         const userHasEndorsed = currentUser && (m.proposer_id === currentUser.id || m.seconder_id === currentUser.id);
-        const canEndorse      = m.transcript && !userHasEndorsed;
+        const bothSlotsFilled = m.proposer_id && m.seconder_id;
+        const canEndorse      = m.transcript && !userHasEndorsed && !bothSlotsFilled;
         const confirmingDelete = deleteConfirm === m.id;
 
         return (
@@ -1213,11 +1214,11 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#4CAF50", fontWeight: 600 }}>
                     ✓ Endorsed
                   </div>
-                ) : (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#999" }}>
-                    Full
+                ) : bothSlotsFilled ? (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#2E7D32", fontWeight: 600 }}>
+                    ✅ Approved
                   </div>
-                )
+                ) : null
               )}
             </div>
           </div>
@@ -1241,8 +1242,8 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
           onClose={() => setEndorseTarget(null)}
           onEndorse={async (type) => {
             try {
-              await api.endorseMeeting(endorseTarget.id, type);
-              showToast(`Meeting ${type === "propose" ? "proposed" : "seconded"} successfully`);
+              const result = await api.endorseMeeting(endorseTarget.id, type);
+              showToast(result?.approved ? "✅ Meeting approved!" : `Meeting ${type === "propose" ? "proposed" : "seconded"} successfully`);
               onRefresh();
               setEndorseTarget(null);
             } catch (e) {
