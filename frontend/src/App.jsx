@@ -1103,7 +1103,19 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
           subtitle="Meeting records will appear here once they are created. Use the AI Recorder to capture and transcribe your first meeting."
         />
       ) : [...meetings]
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .sort((a, b) => {
+            const MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+            const parse = s => {
+              if (!s) return 0;
+              const lower = s.toLowerCase();
+              const month = MONTHS.findIndex(mn => lower.includes(mn));
+              const year  = (s.match(/\d{4}/) || [])[0];
+              const day   = (s.match(/\b(\d{1,2})\b/) || [])[1];
+              if (month < 0 || !year) return new Date(s).getTime() || 0;
+              return new Date(+year, month, +(day || 1)).getTime();
+            };
+            return parse(b.date) - parse(a.date);
+          })
           .map((m, i) => {
         const userHasEndorsed = currentUser && (m.proposer_id === currentUser.id || m.seconder_id === currentUser.id);
         const bothSlotsFilled = m.proposer_id && m.seconder_id;
