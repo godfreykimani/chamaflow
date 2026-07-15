@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { id: "dashboard",     label: "Home",          icon: "⊞" },
   { id: "contributions", label: "Contributions", icon: "◈" },
   { id: "meetings",      label: "Meetings",      icon: "◉" },
-  { id: "record",        label: "Record",        icon: "⊕", adminOnly: true },
+  { id: "record",        label: "Record Meeting", icon: "⊕", adminOnly: true },
   { id: "members",       label: "Members",       icon: "◎" },
   { id: "report",        label: "Annual Report", icon: "▤", adminOnly: true },
   { id: "settings",      label: "Settings",      icon: "⊙" },
@@ -587,7 +587,7 @@ function ChamaFlow({ onLogout }) {
       {/* Modals & Overlays */}
 
       {selectedMeeting   && <PDFModal meeting={selectedMeeting} members={members} onClose={() => setSelectedMeeting(null)} />}
-      {transcriptMeeting && viewMode === "desktop" && <TranscriptPanel meeting={transcriptMeeting} onClose={() => setTranscriptMeeting(null)} />}
+      {transcriptMeeting && <TranscriptPanel meeting={transcriptMeeting} onClose={() => setTranscriptMeeting(null)} />}
       {addMemberModal    && <AddMemberModal onClose={() => setAddMemberModal(false)} onAdd={handleAddMember} members={members} />}
       {editMember      && <EditMemberModal member={editMember} onClose={() => setEditMember(null)} onSave={handleEditMember} />}
 
@@ -890,12 +890,14 @@ function Chip({ label, onRemove, dark, bg, color, border }) {
 // ── Meetings Page ─────────────────────────────────────────────────────────────
 
 function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeeting, setTranscriptMeeting, showToast, onRefresh, viewMode }) {
-  const [showRec,        setShowRec]        = useState(false);
-  const [recMonth,       setRecMonth]       = useState("");
-  const [recording,      setRecording]      = useState(false);
-  const [transcribing,   setTranscribing]   = useState(false);
-  const [waveform,       setWaveform]       = useState([]);
-  const [aiProvider,     setAiProvider]     = useState("groq");
+  const [showRec,           setShowRec]           = useState(false);
+  const [recMonth,          setRecMonth]          = useState("");
+  const [recording,         setRecording]         = useState(false);
+  const [transcribing,      setTranscribing]      = useState(false);
+  const [waveform,          setWaveform]          = useState([]);
+  const [aiProvider]                              = useState("groq");
+  const [transcribeDone,    setTranscribeDone]    = useState(false);
+  const [transcribedMtg,    setTranscribedMtg]    = useState(null);
   const [endorseTarget,    setEndorseTarget]    = useState(null);
   const [attendanceTarget, setAttendanceTarget] = useState(null);
   const [deleteConfirm,    setDeleteConfirm]    = useState(null);
@@ -975,11 +977,11 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
         }
 
         const audioBlob = new Blob(audioChunksRef.current, { type: capturedMime });
-        await api.transcribeMeeting(meetingId, audioBlob, aiProvider);
-        showToast("Transcript saved successfully");
+        const updatedMeeting = await api.transcribeMeeting(meetingId, audioBlob, aiProvider);
+        showToast("Transcript saved — AI minutes generating…");
         onRefresh();
-        setShowRec(false);
-        setRecMonth("");
+        setTranscribedMtg(updatedMeeting || capturedMeeting || { id: meetingId });
+        setTranscribeDone(true);
       } catch (e) {
         showToast(e.message || "Transcription failed", "error");
       } finally {
@@ -1000,9 +1002,9 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
           <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{meetings.length} meetings</div>
         </div>
         {isAdmin && (
-          <button className="btn" onClick={() => { setShowRec(v => !v); setRecording(false); setTranscribing(false); }}
+          <button className="btn" onClick={() => { setShowRec(v => !v); setRecording(false); setTranscribing(false); setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
             style={{ background: showRec ? "#1A1A1A" : "linear-gradient(135deg,#C8A97E,#A07850)", color: "#fff", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>
-            {showRec ? "✕ Close" : "🎙 Record AI"}
+            {showRec ? "✕ Close" : "🎙 Record Meeting"}
           </button>
         )}
       </div>
@@ -1010,74 +1012,82 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
       {/* AI Recorder Modal — admin only */}
       {showRec && isAdmin && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-          onClick={e => { if (e.target === e.currentTarget && !recording && !transcribing) { setShowRec(false); setRecMonth(""); } }}>
-          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 32, width: "100%", maxWidth: 670, fontFamily: "'DM Sans', sans-serif" }} className="fade-up modal-card">
+          onClick={e => { if (e.target === e.currentTarget && !recording && !transcribing) { setShowRec(false); setRecMonth(""); setTranscribeDone(false); setTranscribedMtg(null); } }}>
+          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 32, width: "100%", maxWidth: 560, fontFamily: "'DM Sans', sans-serif" }} className="fade-up modal-card">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>🎙 AI Meeting Recorder</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>🎙 Record Meeting</div>
               {!recording && !transcribing && (
-                <button onClick={() => { setShowRec(false); setRecMonth(""); }}
+                <button onClick={() => { setShowRec(false); setRecMonth(""); setTranscribeDone(false); setTranscribedMtg(null); }}
                   style={{ background: "#2A2A2A", border: "none", borderRadius: 8, width: 32, height: 32, color: "#888", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
               )}
             </div>
 
-            {/* Model selector */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-              {[
-                { id: "groq",        label: "Groq",         sub: "Whisper Large v3" },
-                { id: "huggingface", label: "HuggingFace",  sub: "Whisper Turbo"    },
-              ].map(p => (
-                <button key={p.id} onClick={() => !recording && !transcribing && setAiProvider(p.id)}
-                  style={{ flex: 1, padding: "12px 10px", borderRadius: 12, border: `1.5px solid ${aiProvider === p.id ? "#C8A97E" : "#333"}`, background: aiProvider === p.id ? "rgba(200,169,126,0.12)" : "#2A2A2A", color: aiProvider === p.id ? "#C8A97E" : "#666", fontSize: 14, fontWeight: 600, cursor: recording || transcribing ? "default" : "pointer", textAlign: "center", lineHeight: 1.5, fontFamily: "inherit" }}>
-                  {p.label}<br /><span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>{p.sub}</span>
+            {transcribeDone ? (
+              /* ── Success state ── */
+              <div style={{ textAlign: "center", padding: "20px 0 8px" }}>
+                <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#F7F6F2", marginBottom: 8 }}>Transcription complete!</div>
+                <div style={{ fontSize: 14, color: "#666", marginBottom: 32, lineHeight: 1.6 }}>
+                  AI meeting minutes are being generated by Claude.<br />They'll be ready in a few seconds.
+                </div>
+                <button className="btn" onClick={() => { setTranscriptMeeting(transcribedMtg); setShowRec(false); setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
+                  style={{ width: "100%", background: "#C8A97E", color: "#1A1A1A", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit", marginBottom: 12 }}>
+                  📄 View Minutes
                 </button>
-              ))}
-            </div>
-
-            {/* Month selector */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, color: "#666", letterSpacing: 0.5, marginBottom: 8 }}>SELECT MEETING MONTH</div>
-              <select value={recMonth} onChange={e => setRecMonth(e.target.value)} disabled={recording || transcribing}
-                style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1px solid #333", background: "#2A2A2A", color: "#F0EDE6", fontSize: 15, fontFamily: "inherit", outline: "none" }}>
-                <option value="">Choose month…</option>
-                {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-              {recMeeting && (
-                <div style={{ fontSize: 13, color: "#4CAF50", marginTop: 8 }}>✓ {recMeeting.date} — {recMeeting.location}</div>
-              )}
-              {recMonth && !recMeeting && (
-                <div style={{ fontSize: 13, color: "#C8A97E", marginTop: 8 }}>◎ No meeting scheduled yet — a placeholder will be created automatically</div>
-              )}
-            </div>
-
-            {/* Waveform */}
-            <div style={{ height: 72, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 20, overflow: "hidden", background: "#111", borderRadius: 14 }}>
-              {recording
-                ? waveform.map((h, i) => <div key={i} style={{ width: 3, height: h, background: "#C8A97E", borderRadius: 2, transition: "height 0.05s" }} />)
-                : Array.from({ length: 40 }).map((_, i) => <div key={i} style={{ width: 3, height: 8, background: "#2A2A2A", borderRadius: 2 }} />)
-              }
-            </div>
-
-            {/* Controls */}
-            {transcribing ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", padding: 16 }}>
-                <div style={{ width: 18, height: 18, border: "2px solid #333", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                <span style={{ fontSize: 15, color: "#888" }}>Transcribing with {aiProvider === "huggingface" ? "Whisper Turbo" : "Groq Whisper"}…</span>
+                <button onClick={() => { setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
+                  style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                  Record another meeting
+                </button>
               </div>
-            ) : recording ? (
-              <button className="btn" onClick={handleStopRecording}
-                style={{ width: "100%", background: "#EF5350", color: "#fff", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit", animation: "pulse 1.5s infinite" }}>
-                ⏹ Stop &amp; Transcribe
-              </button>
             ) : (
-              <button className="btn" onClick={handleStartRecording} disabled={!recMonth}
-                style={{ width: "100%", background: recMonth ? "#C8A97E" : "#2A2A2A", color: recMonth ? "#1A1A1A" : "#555", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit" }}>
-                ⏺ Start Recording
-              </button>
+              <>
+                {/* Month selector */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, color: "#666", letterSpacing: 0.5, marginBottom: 8 }}>SELECT MEETING MONTH</div>
+                  <select value={recMonth} onChange={e => setRecMonth(e.target.value)} disabled={recording || transcribing}
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1px solid #333", background: "#2A2A2A", color: "#F0EDE6", fontSize: 15, fontFamily: "inherit", outline: "none" }}>
+                    <option value="">Choose month…</option>
+                    {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  {recMeeting && (
+                    <div style={{ fontSize: 13, color: "#4CAF50", marginTop: 8 }}>✓ {recMeeting.date} — {recMeeting.location}</div>
+                  )}
+                  {recMonth && !recMeeting && (
+                    <div style={{ fontSize: 13, color: "#C8A97E", marginTop: 8 }}>◎ No meeting scheduled yet — a placeholder will be created automatically</div>
+                  )}
+                </div>
+
+                {/* Waveform */}
+                <div style={{ height: 72, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 20, overflow: "hidden", background: "#111", borderRadius: 14 }}>
+                  {recording
+                    ? waveform.map((h, i) => <div key={i} style={{ width: 3, height: h, background: "#C8A97E", borderRadius: 2, transition: "height 0.05s" }} />)
+                    : Array.from({ length: 40 }).map((_, i) => <div key={i} style={{ width: 3, height: 8, background: "#2A2A2A", borderRadius: 2 }} />)
+                  }
+                </div>
+
+                {/* Controls */}
+                {transcribing ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", padding: 16 }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #333", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    <span style={{ fontSize: 15, color: "#888" }}>Transcribing audio…</span>
+                  </div>
+                ) : recording ? (
+                  <button className="btn" onClick={handleStopRecording}
+                    style={{ width: "100%", background: "#EF5350", color: "#fff", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit", animation: "pulse 1.5s infinite" }}>
+                    ⏹ Stop &amp; Transcribe
+                  </button>
+                ) : (
+                  <button className="btn" onClick={handleStartRecording} disabled={!recMonth}
+                    style={{ width: "100%", background: recMonth ? "#C8A97E" : "#2A2A2A", color: recMonth ? "#1A1A1A" : "#555", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit" }}>
+                    ⏺ Start Recording
+                  </button>
+                )}
+                <div style={{ fontSize: 12, color: "#555", textAlign: "center", marginTop: 14 }}>
+                  Audio transcribed by Groq Whisper · Minutes generated by Claude AI
+                </div>
+              </>
             )}
-            <div style={{ fontSize: 12, color: "#555", textAlign: "center", marginTop: 14 }}>
-              Audio transcribed by {aiProvider === "huggingface" ? "HuggingFace Whisper Turbo" : "Groq Whisper Large v3"} and saved to the meeting
-            </div>
           </div>
         </div>,
         document.body
@@ -1183,7 +1193,7 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
             {/* Action buttons */}
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn"
-                onClick={() => viewMode === "desktop" ? setTranscriptMeeting(m) : setSelectedMeeting(m)}
+                onClick={() => setTranscriptMeeting(m)}
                 style={{ flex: 2, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 600 }}>
                 📄 View Minutes
               </button>
@@ -2222,7 +2232,6 @@ function SettingsPage({ role, currentUser, onLogout, memberCount }) {
 // ── Transcript Side Panel (desktop) ──────────────────────────────────────────
 
 function TranscriptPanel({ meeting, onClose }) {
-  const [copied, setCopied]         = useState(false);
   const [minutes, setMinutes]       = useState(null);
   const [loadingMin, setLoadingMin] = useState(true);
   const [freshMeeting, setFreshMeeting] = useState(meeting);
@@ -2239,23 +2248,13 @@ function TranscriptPanel({ meeting, onClose }) {
       .finally(() => setLoadingMin(false));
   }, [meeting.id]);
 
-  const transcript = freshMeeting.transcript || meeting.transcript;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(transcript || "").then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  const wordCount = transcript ? transcript.trim().split(/\s+/).length : 0;
   const fmt = (n) => `KES ${Number(n || 0).toLocaleString()}`;
 
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.18)", zIndex: 200 }} />
       <div className="slide-right" style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: 500,
+        position: "fixed", top: 0, right: 0, bottom: 0, width: "min(500px, 100vw)",
         background: "#F9F8F5", zIndex: 201, display: "flex", flexDirection: "column",
         boxShadow: "-6px 0 32px rgba(0,0,0,0.12)", fontFamily: "'DM Sans', sans-serif",
       }}>
@@ -2267,11 +2266,6 @@ function TranscriptPanel({ meeting, onClose }) {
               <div style={{ fontSize: 12, color: "#999", marginTop: 3 }}>{freshMeeting.location}</div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {transcript && (
-                <button onClick={handleCopy} style={{ background: copied ? "#E8F5E9" : "#F0EEE8", color: copied ? "#2E7D32" : "#555", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
-                  {copied ? "✓ Copied" : "⎘ Copy"}
-                </button>
-              )}
               <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#BBB", cursor: "pointer", lineHeight: 1 }}>✕</button>
             </div>
           </div>
@@ -2286,36 +2280,14 @@ function TranscriptPanel({ meeting, onClose }) {
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 32px" }}>
 
-          {/* ── AI Summary ── */}
-          {!loadingMin && minutes?.ai_summary && (
-            <div style={{ background: "#1A1A1A", borderRadius: 14, padding: "20px 22px", marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#C8A97E", letterSpacing: 0.8, marginBottom: 12 }}>AI MEETING SUMMARY</div>
-              <p style={{ margin: 0, fontSize: 15, color: "#F0EDE6", lineHeight: 1.75 }}>{minutes.ai_summary.summary}</p>
-              {minutes.ai_summary.key_points?.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 8 }}>KEY POINTS</div>
-                  {minutes.ai_summary.key_points.map((p, i) => (
-                    <div key={i} style={{ fontSize: 14, color: "#D0CEC8", marginBottom: 6, paddingLeft: 14, borderLeft: "2px solid #333" }}>{p}</div>
-                  ))}
-                </div>
-              )}
-              {minutes.ai_summary.action_items?.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 8 }}>ACTION ITEMS</div>
-                  {minutes.ai_summary.action_items.map((a, i) => (
-                    <div key={i} style={{ fontSize: 14, color: "#D0CEC8", marginBottom: 6, display: "flex", gap: 8 }}>
-                      <span style={{ color: "#C8A97E" }}>→</span>{a}
-                    </div>
-                  ))}
-                </div>
-              )}
+          {loadingMin ? (
+            <div style={{ textAlign: "center", padding: "48px 0" }}>
+              <div style={{ width: 24, height: 24, border: "2px solid #EEE", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 12px" }} />
+              <div style={{ fontSize: 14, color: "#BBB" }}>Loading minutes…</div>
             </div>
-          )}
-
-          {/* ── Attendance & Financials ── */}
-          {!loadingMin && minutes && (
+          ) : minutes ? (
             <>
-              {/* Stats row */}
+              {/* 1 ── Attendance */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
                 {[
                   { label: "Present", value: minutes.attendance.present_count, sub: `of ${minutes.attendance.total_members}`, color: "#2E7D32" },
@@ -2330,7 +2302,7 @@ function TranscriptPanel({ meeting, onClose }) {
                 ))}
               </div>
 
-              {/* Financial stats */}
+              {/* 2 ── Financials */}
               <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 12 }}>FINANCIALS · {minutes.month || "—"}</div>
                 {[
@@ -2346,19 +2318,7 @@ function TranscriptPanel({ meeting, onClose }) {
                 ))}
               </div>
 
-              {/* Present members list */}
-              {minutes.attendance.present.length > 0 && (
-                <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 12 }}>MEMBERS PRESENT</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {minutes.attendance.present.map(m => (
-                      <span key={m.id} style={{ fontSize: 13, background: "#F0EDE6", color: "#1A1A1A", borderRadius: 6, padding: "5px 10px", fontWeight: 500 }}>{m.name}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Contributions list */}
+              {/* 3 ── Contributions (member detail) */}
               {minutes.contributions.items.length > 0 && (
                 <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 12 }}>CONTRIBUTIONS</div>
@@ -2376,38 +2336,42 @@ function TranscriptPanel({ meeting, onClose }) {
                   ))}
                 </div>
               )}
-            </>
-          )}
 
-          {/* ── Raw Transcript ── */}
-          <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 14 }}>RAW TRANSCRIPT</div>
-            {loadingMin ? (
-              <div style={{ textAlign: "center", padding: "32px 0", color: "#CCC" }}>
-                <div style={{ width: 20, height: 20, border: "2px solid #EEE", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 10px" }} />
-                <div style={{ fontSize: 13, color: "#BBB" }}>Loading transcript…</div>
-              </div>
-            ) : transcript ? (
-              <p style={{ margin: 0, fontSize: 15, color: "#1A1A1A", lineHeight: 1.9, whiteSpace: "pre-wrap" }}>
-                {transcript}
-              </p>
-            ) : (
-              <div style={{ textAlign: "center", padding: "48px 0" }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>🎙</div>
-                <div style={{ fontSize: 15, color: "#999" }}>No transcript yet.</div>
-                <div style={{ fontSize: 13, color: "#BBB", marginTop: 6 }}>Use the AI Recorder to generate one.</div>
-              </div>
-            )}
-          </div>
+              {/* 4 ── Key Points */}
+              {minutes.ai_summary?.key_points?.length > 0 && (
+                <div style={{ background: "#1A1A1A", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#C8A97E", letterSpacing: 0.5, marginBottom: 12 }}>KEY POINTS</div>
+                  {minutes.ai_summary.key_points.map((p, i) => (
+                    <div key={i} style={{ fontSize: 14, color: "#D0CEC8", marginBottom: 8, paddingLeft: 14, borderLeft: "2px solid #333", lineHeight: 1.6 }}>{p}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* 5 ── Action Items */}
+              {minutes.ai_summary?.action_items?.length > 0 && (
+                <div style={{ background: "#1A1A1A", borderRadius: 12, padding: "16px 18px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#C8A97E", letterSpacing: 0.5, marginBottom: 12 }}>ACTION ITEMS</div>
+                  {minutes.ai_summary.action_items.map((a, i) => (
+                    <div key={i} style={{ fontSize: 14, color: "#D0CEC8", marginBottom: 8, display: "flex", gap: 10, lineHeight: 1.6 }}>
+                      <span style={{ color: "#C8A97E", flexShrink: 0 }}>→</span>{a}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ textAlign: "center", padding: "48px 0" }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🎙</div>
+              <div style={{ fontSize: 15, color: "#999" }}>No minutes yet.</div>
+              <div style={{ fontSize: 13, color: "#BBB", marginTop: 6 }}>Use the Record Meeting button to generate them.</div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        {transcript && (
-          <div style={{ padding: "14px 24px", borderTop: "1px solid #ECEAE4", background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 12, color: "#BBB" }}>{wordCount.toLocaleString()} words · AI transcribed</div>
-            <div style={{ fontSize: 12, color: "#BBB" }}>{freshMeeting.status}</div>
-          </div>
-        )}
+        <div style={{ padding: "12px 24px", borderTop: "1px solid #ECEAE4", background: "#fff", textAlign: "center" }}>
+          <div style={{ fontSize: 12, color: "#BBB" }}>Minutes generated by Claude AI · {freshMeeting.status}</div>
+        </div>
       </div>
     </>
   );
