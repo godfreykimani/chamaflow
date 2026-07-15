@@ -204,12 +204,19 @@ async function generateMeetingSummary(meetingId, transcript) {
         max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are a Chama (savings group) meeting secretary. Summarize the following meeting transcript concisely. Return ONLY a JSON object with these exact keys:
+          content: `You are a Chama (savings group) meeting secretary. Analyse the following meeting transcript and return ONLY a JSON object with these exact keys:
 {
   "summary": "2-4 sentence overview of what was discussed",
   "key_points": ["point 1", "point 2", ...],
-  "action_items": ["action 1", "action 2", ...]
+  "action_items": ["action 1", "action 2", ...],
+  "attendance": {
+    "present": ["Full Name", ...],
+    "absent": ["Full Name", ...],
+    "apology": ["Full Name", ...]
+  }
 }
+
+For the attendance field, listen carefully for any roll-call, attendance, or register section in the transcript. Extract member names mentioned as present, absent, or sending apologies/apology. If no attendance section is found, return empty arrays.
 
 Transcript:
 ${transcript.slice(0, 8000)}`,
@@ -582,9 +589,20 @@ app.get("/api/meetings/:id/minutes", requireAuth, (req, res) => {
   ).all(req.params.id);
 
   const totalActive = db.prepare("SELECT COUNT(*) as c FROM members WHERE active=1").get().c;
-  const present  = attendance.filter(a => a.status === "present");
-  const apology  = attendance.filter(a => a.status === "apology");
-  const recorded = attendance.length;
+  let present  = attendance.filter(a => a.status === "present");
+  let apology  = attendance.filter(a => a.status === "apology");
+  let absent   = [];
+  let recorded = attendance.length;
+
+  // If no manual attendance recorded, use AI-extracted attendance from the transcript summary
+  const aiSummary = m.ai_summary ? JSON.parse(m.ai_summary) : null;
+  if (recorded === 0 && aiSummary?.attendance) {
+    const ai = aiSummary.attendance;
+    present  = (ai.present  || []).map(name => ({ name, id: null }));
+    apology  = (ai.apology  || []).map(name => ({ name, id: null }));
+    absent   = (ai.absent   || []).map(name => ({ name, id: null }));
+    recorded = present.length + apology.length + absent.length;
+  }
 
   let contributions = [];
   if (month) {
@@ -601,12 +619,12 @@ app.get("/api/meetings/:id/minutes", requireAuth, (req, res) => {
 
   ok(res, {
     month,
-    ai_summary: m.ai_summary ? JSON.parse(m.ai_summary) : null,
+    ai_summary: aiSummary,
     attendance: {
-      present, apology,
+      present, apology, absent,
       present_count:  present.length,
       apology_count:  apology.length,
-      absent_count:   Math.max(0, totalActive - recorded),
+      absent_count:   absent.length > 0 ? absent.length : Math.max(0, totalActive - recorded),
       total_members:  totalActive,
     },
     contributions: {
