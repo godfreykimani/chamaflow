@@ -1013,7 +1013,7 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
       {showRec && isAdmin && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={e => { if (e.target === e.currentTarget && !recording && !transcribing) { setShowRec(false); setRecMonth(""); setTranscribeDone(false); setTranscribedMtg(null); } }}>
-          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 32, width: "100%", maxWidth: 560, fontFamily: "'DM Sans', sans-serif" }} className="fade-up modal-card">
+          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 32, width: "100%", maxWidth: 560, fontFamily: "'DM Sans', sans-serif" }} className="fade-up">
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>🎙 Record Meeting</div>
