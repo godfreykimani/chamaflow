@@ -892,6 +892,13 @@ function Chip({ label, onRemove, dark, bg, color, border }) {
 
 // ── Meetings Page ─────────────────────────────────────────────────────────────
 
+function lastThursdayOf(year, month) {
+  const lastDay = new Date(year, month + 1, 0);
+  const dow = lastDay.getDay(); // 0=Sun … 4=Thu … 6=Sat
+  const offset = (dow >= 4) ? dow - 4 : dow + 3;
+  return new Date(year, month, lastDay.getDate() - offset);
+}
+
 function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeeting, setTranscriptMeeting, showToast, onRefresh, viewMode }) {
   const [showRec,           setShowRec]           = useState(false);
   const [recMonth,          setRecMonth]          = useState("");
@@ -911,6 +918,9 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
   const [scheduling,       setScheduling]       = useState(false);
   const [schedLoc,         setSchedLoc]         = useState("");
   const [schedAgenda,      setSchedAgenda]      = useState("");
+  const [showSchedGen,     setShowSchedGen]     = useState(false);
+  const [schedGenLoc,      setSchedGenLoc]      = useState("");
+  const [schedGenCreating, setSchedGenCreating] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
@@ -1172,10 +1182,113 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
                 );
               })}
             </div>
-            {isAdmin && <div style={{ fontSize: 10, color: "#CCC", textAlign: "center", marginTop: 10 }}>Tap a future date to schedule a meeting</div>}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+              {isAdmin
+                ? <div style={{ fontSize: 10, color: "#CCC" }}>Tap a future date to schedule a meeting</div>
+                : <div />}
+              {isAdmin && (
+                <button onClick={() => setShowSchedGen(true)}
+                  style={{ background: "none", border: "1px solid #E0D8CC", borderRadius: 8, padding: "4px 10px", fontSize: 10, fontWeight: 600, color: "#A07850", cursor: "pointer" }}>
+                  🔁 Generate schedule
+                </button>
+              )}
+            </div>
           </div>
         );
       })()}
+
+      {/* ── Recurring schedule generator ───────────────────────────── */}
+      {showSchedGen && isAdmin && createPortal((() => {
+        const MN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // Next 12 last-Thursdays from this month onward
+        const slots = Array.from({ length: 12 }, (_, i) => {
+          const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+          return lastThursdayOf(d.getFullYear(), d.getMonth());
+        }).filter(d => d >= today);
+
+        // Which slots already have a meeting in that month+year?
+        const existingKeys = new Set(
+          meetings.map(m => {
+            const mi = MN.findIndex(mn => m.date.toLowerCase().includes(mn.toLowerCase()));
+            const yr = (m.date.match(/\d{4}/) || [])[0];
+            return (mi >= 0 && yr) ? `${mi}-${yr}` : null;
+          }).filter(Boolean)
+        );
+
+        const newSlots = slots.filter(d => !existingKeys.has(`${d.getMonth()}-${d.getFullYear()}`));
+        const skipCount = slots.length - newSlots.length;
+
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9997, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+            onClick={e => { if (e.target === e.currentTarget) setShowSchedGen(false); }}>
+            <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 420 }} className="fade-up">
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A", marginBottom: 4 }}>🔁 Generate Meeting Schedule</div>
+              <div style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>
+                Last Thursday of each month — next {slots.length} months
+              </div>
+
+              {/* Date list */}
+              <div style={{ background: "#F7F6F2", borderRadius: 12, padding: "10px 14px", marginBottom: 18, maxHeight: 220, overflowY: "auto" }}>
+                {slots.map(d => {
+                  const key = `${d.getMonth()}-${d.getFullYear()}`;
+                  const exists = existingKeys.has(key);
+                  const label = `${MN[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+                  return (
+                    <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid #ECEAE4" }}>
+                      <span style={{ fontSize: 13, color: exists ? "#BBB" : "#1A1A1A", fontWeight: exists ? 400 : 500 }}>{label}</span>
+                      {exists
+                        ? <span style={{ fontSize: 10, color: "#BBB", fontStyle: "italic" }}>already scheduled</span>
+                        : <span style={{ fontSize: 10, color: "#4CAF50", fontWeight: 600 }}>+ new</span>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Default location */}
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Default location for all meetings</div>
+              <input value={schedGenLoc} onChange={e => setSchedGenLoc(e.target.value)}
+                placeholder="e.g. Village Hall, Zoom, Member's Home"
+                style={{ width: "100%", border: "1.5px solid #E5E5E5", borderRadius: 10, padding: "10px 12px", fontSize: 13, marginBottom: 6, boxSizing: "border-box", outline: "none", fontFamily: "inherit" }} />
+              {skipCount > 0 && (
+                <div style={{ fontSize: 11, color: "#BBB", marginBottom: 14 }}>
+                  {skipCount} month{skipCount > 1 ? "s" : ""} already have a meeting and will be skipped.
+                </div>
+              )}
+              {!skipCount && <div style={{ marginBottom: 14 }} />}
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => { setShowSchedGen(false); setSchedGenLoc(""); }}
+                  style={{ flex: 1, border: "1.5px solid #E5E5E5", background: "#fff", borderRadius: 12, padding: "11px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#555", fontFamily: "inherit" }}>
+                  Cancel
+                </button>
+                <button
+                  disabled={!schedGenLoc.trim() || schedGenCreating || newSlots.length === 0}
+                  onClick={async () => {
+                    setSchedGenCreating(true);
+                    let created = 0;
+                    for (const d of newSlots) {
+                      const dateStr = `${MN[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+                      try {
+                        await api.addMeeting({ date: dateStr, location: schedGenLoc.trim(), agenda: `${MN[d.getMonth()]} ${d.getFullYear()} monthly meeting` });
+                        created++;
+                      } catch {}
+                    }
+                    showToast(`${created} meeting${created !== 1 ? "s" : ""} scheduled`);
+                    onRefresh();
+                    setShowSchedGen(false);
+                    setSchedGenLoc("");
+                    setSchedGenCreating(false);
+                  }}
+                  style={{ flex: 2, background: (schedGenLoc.trim() && newSlots.length > 0) ? "linear-gradient(135deg,#C8A97E,#A07850)" : "#E5E5E5", color: (schedGenLoc.trim() && newSlots.length > 0) ? "#fff" : "#AAA", border: "none", borderRadius: 12, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: (schedGenLoc.trim() && newSlots.length > 0) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                  {schedGenCreating ? "Creating…" : `Create ${newSlots.length} meeting${newSlots.length !== 1 ? "s" : ""}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })(), document.body)}
 
       {/* ── Schedule meeting modal ─────────────────────────────────── */}
       {scheduleDay && createPortal(
