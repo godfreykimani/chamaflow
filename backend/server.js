@@ -473,7 +473,8 @@ app.get("/api/contributions/:id", (req, res) => {
 app.post("/api/contributions", requireAdmin, (req, res) => {
   const {member_id,type="Contribution",month,amount,method="M-Pesa",ref="",status="Pending",notes=""} = req.body;
   if (!member_id||!month||!amount) return fail(res,"member_id, month, amount required");
-  const MIN={Contribution:5000,Fine:500,Lateness:200};
+  const MIN={Contribution:5000,Fine:500,Lateness:200,"Late Contribution":0};
+  if (!Object.hasOwn(MIN,type)) return fail(res,`Unknown type: ${type}`);
   if (amount<(MIN[type]??0)) return fail(res,`Minimum for ${type} is KES ${MIN[type]}`);
   const r = db.prepare("INSERT INTO contributions (member_id,type,month,amount,method,ref,status,notes,recorded_by) VALUES (?,?,?,?,?,?,?,?,?)")
     .run(member_id,type,month,amount,method,ref,status,notes,req.user.id);
@@ -617,10 +618,11 @@ app.get("/api/meetings/:id/minutes", requireAuth, (req, res) => {
   }
 
   const confirmed  = contributions.filter(c => c.status === "Confirmed");
-  const totalCollected  = confirmed.reduce((s, c) => s + c.amount, 0);
-  const totalContribs   = contributions.filter(c => c.type === "Contribution").reduce((s, c) => s + c.amount, 0);
-  const totalFines      = contributions.filter(c => c.type === "Fine").reduce((s, c) => s + c.amount, 0);
-  const totalLateness   = contributions.filter(c => c.type === "Lateness").reduce((s, c) => s + c.amount, 0);
+  const totalCollected      = confirmed.reduce((s, c) => s + c.amount, 0);
+  const totalContribs       = contributions.filter(c => c.type === "Contribution").reduce((s, c) => s + c.amount, 0);
+  const totalFines          = contributions.filter(c => c.type === "Fine").reduce((s, c) => s + c.amount, 0);
+  const totalLateness       = contributions.filter(c => c.type === "Lateness").reduce((s, c) => s + c.amount, 0);
+  const totalLateContrib    = contributions.filter(c => c.type === "Late Contribution").reduce((s, c) => s + c.amount, 0);
 
   ok(res, {
     month,
@@ -638,6 +640,7 @@ app.get("/api/meetings/:id/minutes", requireAuth, (req, res) => {
       total_contributions: totalContribs,
       total_fines: totalFines,
       total_lateness: totalLateness,
+      total_late_contribution: totalLateContrib,
     },
   });
 });
@@ -715,8 +718,8 @@ app.post("/api/meetings/:id/attendance", requireAdmin, (req, res) => {
 });
 
 // POST /api/meetings/:id/auto-fines/late-payment
-// Finds active members who have no contribution for this meeting's month
-// and auto-creates a Lateness fine (KES 200) for each one (idempotent).
+// For each active member who has not paid their contribution this month,
+// creates a "Late Contribution" fine = shares × KES 5,000 × 10% (idempotent).
 app.post("/api/meetings/:id/auto-fines/late-payment", requireAdmin, (req, res) => {
   const meeting = db.prepare("SELECT * FROM meetings WHERE id=?").get(req.params.id);
   if (!meeting) return notFound(res, "Meeting");
@@ -729,10 +732,10 @@ app.post("/api/meetings/:id/auto-fines/late-payment", requireAdmin, (req, res) =
 
   const NOTE_PREFIX = `auto-late:meeting:${req.params.id}`;
 
-  // All active members
-  const members = db.prepare("SELECT id, name FROM members WHERE active=1").all();
+  // All active members with their share count
+  const members = db.prepare("SELECT id, name, shares FROM members WHERE active=1").all();
 
-  // Members who already have any contribution for this month
+  // Members who already have a confirmed or pending contribution for this month
   const paidIds = new Set(
     db.prepare("SELECT DISTINCT member_id FROM contributions WHERE month=? AND type='Contribution'")
       .all(month).map(r => r.member_id)
@@ -744,21 +747,24 @@ app.post("/api/meetings/:id/auto-fines/late-payment", requireAdmin, (req, res) =
   for (const member of members) {
     if (paidIds.has(member.id)) { skipped.push(member.name); continue; }
 
-    // Check if a late-payment auto-fine already exists for this member+meeting
+    // Idempotent — skip if fine already exists for this member+meeting
     const existing = db.prepare(
-      "SELECT id FROM contributions WHERE member_id=? AND notes=? AND type='Lateness'"
+      "SELECT id FROM contributions WHERE member_id=? AND notes=? AND type='Late Contribution'"
     ).get(member.id, NOTE_PREFIX);
-
     if (existing) { skipped.push(member.name); continue; }
+
+    // 10% of (shares × KES 5,000) per month late
+    const shares = member.shares || 1;
+    const amount = Math.round(shares * 5000 * 0.10);
 
     const r = db.prepare(
       "INSERT INTO contributions (member_id,type,month,amount,method,status,notes,recorded_by) VALUES (?,?,?,?,'Auto','Pending',?,?)"
-    ).run(member.id, "Lateness", month, 200, NOTE_PREFIX, req.user.id);
+    ).run(member.id, "Late Contribution", month, amount, NOTE_PREFIX, req.user.id);
 
     audit(req.user.id, "AUTO_LATE_FINE", `contribution:${r.lastInsertRowid}`,
-      { member_id: member.id, month, meeting_id: req.params.id });
+      { member_id: member.id, month, meeting_id: req.params.id, shares, amount });
 
-    generated.push({ id: r.lastInsertRowid, member_id: member.id, name: member.name, amount: 200 });
+    generated.push({ id: r.lastInsertRowid, member_id: member.id, name: member.name, shares, amount });
   }
 
   ok(res, { month, generated, skipped_count: skipped.length });
@@ -896,8 +902,8 @@ app.get("/api/dashboard/:memberId", (req, res) => {
 app.get("/api/summary", (req, res) => {
   const {month} = req.query;
   if (!month) return fail(res,"month query param required");
-  const rows = db.prepare(`SELECT m.id,m.name,m.shares,(m.shares*5000) AS expected,COALESCE(SUM(CASE WHEN c.type='Contribution' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_contrib,COALESCE(SUM(CASE WHEN c.type='Fine' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_fines,COALESCE(SUM(CASE WHEN c.type='Lateness' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_lateness FROM members m LEFT JOIN contributions c ON c.member_id=m.id AND c.month=? WHERE m.active=1 GROUP BY m.id ORDER BY m.name`).all(month);
-  ok(res,{month,rows,totalExpected:rows.reduce((s,r)=>s+r.expected,0),totalPaid:rows.reduce((s,r)=>s+r.paid_contrib,0),totalFines:rows.reduce((s,r)=>s+r.paid_fines,0),totalLateness:rows.reduce((s,r)=>s+r.paid_lateness,0)});
+  const rows = db.prepare(`SELECT m.id,m.name,m.shares,(m.shares*5000) AS expected,COALESCE(SUM(CASE WHEN c.type='Contribution' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_contrib,COALESCE(SUM(CASE WHEN c.type='Fine' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_fines,COALESCE(SUM(CASE WHEN c.type='Lateness' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_lateness,COALESCE(SUM(CASE WHEN c.type='Late Contribution' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS paid_late_contrib FROM members m LEFT JOIN contributions c ON c.member_id=m.id AND c.month=? WHERE m.active=1 GROUP BY m.id ORDER BY m.name`).all(month);
+  ok(res,{month,rows,totalExpected:rows.reduce((s,r)=>s+r.expected,0),totalPaid:rows.reduce((s,r)=>s+r.paid_contrib,0),totalFines:rows.reduce((s,r)=>s+r.paid_fines,0),totalLateness:rows.reduce((s,r)=>s+r.paid_lateness,0),totalLateContrib:rows.reduce((s,r)=>s+r.paid_late_contrib,0)});
 });
 
 // ─── ANNUAL REPORT ────────────────────────────────────────────────────────────

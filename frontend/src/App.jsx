@@ -17,9 +17,10 @@ const getCurrentMonth = () => {
 const CURRENT_MONTH = getCurrentMonth();
 
 const TYPE_META = {
-  Contribution: { icon: "◈", bg: "#E8F0FE", text: "#1565C0", border: "#90CAF9" },
-  Fine:         { icon: "⚑", bg: "#FBE9E7", text: "#BF360C", border: "#FFAB91" },
-  Lateness:     { icon: "◷", bg: "#FFF8E1", text: "#E65100", border: "#FFE082" },
+  Contribution:       { icon: "◈", bg: "#E8F0FE", text: "#1565C0", border: "#90CAF9" },
+  Fine:               { icon: "⚑", bg: "#FBE9E7", text: "#BF360C", border: "#FFAB91" },
+  Lateness:           { icon: "◷", bg: "#FFF8E1", text: "#E65100", border: "#FFE082" },
+  "Late Contribution":{ icon: "⚡", bg: "#FFF3E0", text: "#E65100", border: "#FFCC80" },
 };
 
 const NAV_ITEMS = [
@@ -744,8 +745,9 @@ function QuickCard({ title, sub, icon, color, iconColor, onClick }) {
 
 function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh }) {
   const totalShares   = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
-  const totalFines    = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
-  const totalLateness = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
+  const totalFines       = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
+  const totalLateness    = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
+  const totalLateContrib = contributions.filter(c => c.type === "Late Contribution").reduce((s,c) => s+c.amount, 0);
   const grandTotal    = contributions.reduce((s,c) => s+c.amount, 0);
   const selectedMemberName = members.find(m => m.id === parseInt(filterMember))?.name;
 
@@ -808,6 +810,7 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
               <option value="Contribution">Contribution (min KES 5,000)</option>
               <option value="Fine">Fine (KES 500)</option>
               <option value="Lateness">Lateness (KES 200)</option>
+              <option value="Late Contribution">Late Contribution (10%/share)</option>
             </select>
           </div>
         )}
@@ -1495,7 +1498,7 @@ function AttendanceModal({ meeting, onClose, showToast }) {
                 if (res.generated.length === 0) {
                   showToast("All members have paid — no late fines needed ✓");
                 } else {
-                  const msgs = res.generated.map(f => `⚡ Late fine: ${f.name} — KES ${f.amount}`);
+                  const msgs = res.generated.map(f => `⚡ ${f.name} (${f.shares} share${f.shares > 1 ? "s" : ""}) — KES ${f.amount.toLocaleString()} late contribution fine`);
                   setFines(prev => [...prev, ...msgs]);
                   showToast(`${res.generated.length} late payment fine${res.generated.length > 1 ? "s" : ""} generated`);
                 }
@@ -1709,7 +1712,7 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
   const F = recordForm;
   const setF = (k, v) => setRecordForm(f => ({ ...f, [k]: v }));
 
-  const minAmount = F.type === "Contribution" ? 5000 : F.type === "Fine" ? 500 : 200;
+  const minAmount = F.type === "Contribution" ? 5000 : F.type === "Fine" ? 500 : F.type === "Lateness" ? 200 : 0;
 
   return (
     <div style={{ padding: 20 }} className="fade-up">
@@ -1763,10 +1766,11 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
         </Label>
 
         <Label text="TYPE">
-          <select value={F.type} onChange={e => { setF("type", e.target.value); setF("amount", e.target.value === "Contribution" ? "5000" : e.target.value === "Fine" ? "500" : "200"); }} style={{ ...selectStyle, width: "100%", color: TYPE_META[F.type]?.text, background: TYPE_META[F.type]?.bg, borderColor: TYPE_META[F.type]?.border }}>
+          <select value={F.type} onChange={e => { const t = e.target.value; setF("type", t); setF("amount", t === "Contribution" ? "5000" : t === "Fine" ? "500" : t === "Lateness" ? "200" : ""); }} style={{ ...selectStyle, width: "100%", color: TYPE_META[F.type]?.text, background: TYPE_META[F.type]?.bg, borderColor: TYPE_META[F.type]?.border }}>
             <option value="Contribution">Contribution (min KES 5,000)</option>
             <option value="Fine">Fine (KES 500)</option>
-            <option value="Lateness">Lateness (KES 200)</option>
+            <option value="Lateness">Lateness — meeting (KES 200)</option>
+            <option value="Late Contribution">Late Contribution (10% per share)</option>
           </select>
         </Label>
 
@@ -2342,11 +2346,12 @@ function TranscriptPanel({ meeting, onClose }) {
               <div style={{ background: "#fff", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, marginBottom: 12 }}>FINANCIALS · {minutes.month || "—"}</div>
                 {[
-                  { label: "Contributions", value: minutes.contributions.total_contributions, color: "#1565C0" },
-                  { label: "Fines",         value: minutes.contributions.total_fines,         color: "#E65100" },
-                  { label: "Lateness",      value: minutes.contributions.total_lateness,      color: "#E65100" },
+                  { label: "Contributions",        value: minutes.contributions.total_contributions,      color: "#1565C0" },
+                  { label: "Fines",                value: minutes.contributions.total_fines,              color: "#BF360C" },
+                  { label: "Lateness (meeting)",   value: minutes.contributions.total_lateness,           color: "#E65100" },
+                  { label: "Late Contributions",   value: minutes.contributions.total_late_contribution,  color: "#E65100" },
                   { label: "Total Collected (Confirmed)", value: minutes.contributions.total_collected, color: "#2E7D32", bold: true },
-                ].map(row => (
+                ].filter(row => row.value > 0 || row.bold).map(row => (
                   <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #F5F4F0" }}>
                     <div style={{ fontSize: 14, color: "#666", fontWeight: row.bold ? 600 : 400 }}>{row.label}</div>
                     <div style={{ fontSize: 14, fontWeight: row.bold ? 700 : 500, color: row.color }}>{fmt(row.value)}</div>
