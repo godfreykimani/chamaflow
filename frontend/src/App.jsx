@@ -1377,9 +1377,10 @@ function EndorsementModal({ meeting, currentUser, onClose, onEndorse }) {
 // ── Attendance Modal ──────────────────────────────────────────────────────────
 
 function AttendanceModal({ meeting, onClose, showToast }) {
-  const [rows,    setRows]    = useState(null);
-  const [saving,  setSaving]  = useState(null); // member_id being saved
-  const [fines,   setFines]   = useState([]);   // auto-generated fines this session
+  const [rows,         setRows]         = useState(null);
+  const [saving,       setSaving]       = useState(null);
+  const [fines,        setFines]        = useState([]);
+  const [lateFining,   setLateFining]   = useState(false);
 
   useEffect(() => {
     api.getMeeting(meeting.id).then(data => {
@@ -1485,7 +1486,28 @@ function AttendanceModal({ meeting, onClose, showToast }) {
           ))}
         </div>
 
-        <div style={{ padding: "12px 24px 28px", borderTop: "1px solid #F0EEE8" }}>
+        <div style={{ padding: "12px 24px 28px", borderTop: "1px solid #F0EEE8", display: "flex", flexDirection: "column", gap: 8 }}>
+          <button className="btn" disabled={lateFining}
+            onClick={async () => {
+              setLateFining(true);
+              try {
+                const res = await api.autoLateFines(meeting.id);
+                if (res.generated.length === 0) {
+                  showToast("All members have paid — no late fines needed ✓");
+                } else {
+                  const msgs = res.generated.map(f => `⚡ Late fine: ${f.name} — KES ${f.amount}`);
+                  setFines(prev => [...prev, ...msgs]);
+                  showToast(`${res.generated.length} late payment fine${res.generated.length > 1 ? "s" : ""} generated`);
+                }
+              } catch (e) {
+                showToast(e.message || "Failed to generate late fines", "error");
+              } finally {
+                setLateFining(false);
+              }
+            }}
+            style={{ width: "100%", background: "#FFF8E1", color: "#E65100", border: "1px solid #FFE082", borderRadius: 14, padding: 13, fontSize: 13, fontWeight: 700 }}>
+            {lateFining ? "Checking…" : "⚡ Auto Late Payment Fines"}
+          </button>
           <button className="btn" onClick={onClose}
             style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700 }}>
             Done

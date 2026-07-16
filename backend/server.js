@@ -678,11 +678,12 @@ app.post("/api/meetings/:id/attendance", requireAdmin, (req, res) => {
   const fineType   = status === "absent" ? "Fine" : status === "apology" ? "Lateness" : null;
   const fineAmount = status === "absent" ? 500 : status === "apology" ? 200 : null;
 
-  // Determine meeting month string for the fine record
-  const meetingDate = new Date(meeting.date);
-  const fineMonth   = isNaN(meetingDate)
-    ? meeting.date                  // fallback: use raw date string
-    : meetingDate.toLocaleString("en-GB",{month:"long"}) + " " + meetingDate.getFullYear();
+  // Robust month string — works for "January 1, 2026", "January 2026", ISO dates
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const _lower = meeting.date.toLowerCase();
+  const _mi    = MONTH_NAMES.findIndex(m => _lower.includes(m.toLowerCase()));
+  const _yr    = (meeting.date.match(/\d{4}/) || [])[0];
+  const fineMonth = (_mi >= 0 && _yr) ? `${MONTH_NAMES[_mi]} ${_yr}` : meeting.date;
 
   let autoFine = null;
 
@@ -711,6 +712,56 @@ app.post("/api/meetings/:id/attendance", requireAdmin, (req, res) => {
   }
 
   ok(res, { message: "Attendance recorded", autoFine });
+});
+
+// POST /api/meetings/:id/auto-fines/late-payment
+// Finds active members who have no contribution for this meeting's month
+// and auto-creates a Lateness fine (KES 200) for each one (idempotent).
+app.post("/api/meetings/:id/auto-fines/late-payment", requireAdmin, (req, res) => {
+  const meeting = db.prepare("SELECT * FROM meetings WHERE id=?").get(req.params.id);
+  if (!meeting) return notFound(res, "Meeting");
+
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const _lower = meeting.date.toLowerCase();
+  const _mi    = MONTH_NAMES.findIndex(m => _lower.includes(m.toLowerCase()));
+  const _yr    = (meeting.date.match(/\d{4}/) || [])[0];
+  const month  = (_mi >= 0 && _yr) ? `${MONTH_NAMES[_mi]} ${_yr}` : meeting.date;
+
+  const NOTE_PREFIX = `auto-late:meeting:${req.params.id}`;
+
+  // All active members
+  const members = db.prepare("SELECT id, name FROM members WHERE active=1").all();
+
+  // Members who already have any contribution for this month
+  const paidIds = new Set(
+    db.prepare("SELECT DISTINCT member_id FROM contributions WHERE month=? AND type='Contribution'")
+      .all(month).map(r => r.member_id)
+  );
+
+  const generated = [];
+  const skipped   = [];
+
+  for (const member of members) {
+    if (paidIds.has(member.id)) { skipped.push(member.name); continue; }
+
+    // Check if a late-payment auto-fine already exists for this member+meeting
+    const existing = db.prepare(
+      "SELECT id FROM contributions WHERE member_id=? AND notes=? AND type='Lateness'"
+    ).get(member.id, NOTE_PREFIX);
+
+    if (existing) { skipped.push(member.name); continue; }
+
+    const r = db.prepare(
+      "INSERT INTO contributions (member_id,type,month,amount,method,status,notes,recorded_by) VALUES (?,?,?,?,'Auto','Pending',?,?)"
+    ).run(member.id, "Lateness", month, 200, NOTE_PREFIX, req.user.id);
+
+    audit(req.user.id, "AUTO_LATE_FINE", `contribution:${r.lastInsertRowid}`,
+      { member_id: member.id, month, meeting_id: req.params.id });
+
+    generated.push({ id: r.lastInsertRowid, member_id: member.id, name: member.name, amount: 200 });
+  }
+
+  ok(res, { month, generated, skipped_count: skipped.length });
 });
 
 app.post("/api/meetings/:id/decisions", requireAdmin, (req, res) => {

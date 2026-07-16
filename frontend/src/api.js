@@ -119,6 +119,9 @@ export const deleteMeeting = (id) =>
 export const recordAttendance = (meetingId, body) =>
   request(`/meetings/${meetingId}/attendance`, { method: "POST", body: JSON.stringify(body) });
 
+export const autoLateFines = (meetingId) =>
+  request(`/meetings/${meetingId}/auto-fines/late-payment`, { method: "POST" });
+
 export const addDecision = (meetingId, body) =>
   request(`/meetings/${meetingId}/decisions`, { method: "POST", body: JSON.stringify(body) });
 
