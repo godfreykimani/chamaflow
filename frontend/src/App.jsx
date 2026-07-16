@@ -905,6 +905,12 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
   const [attendanceTarget, setAttendanceTarget] = useState(null);
   const [deleteConfirm,    setDeleteConfirm]    = useState(null);
   const [deleting,         setDeleting]         = useState(false);
+  const [calView,          setCalView]          = useState(false);
+  const [calDate,          setCalDate]          = useState(new Date(now.getFullYear(), now.getMonth(), 1));
+  const [scheduleDay,      setScheduleDay]      = useState(null);
+  const [scheduling,       setScheduling]       = useState(false);
+  const [schedLoc,         setSchedLoc]         = useState("");
+  const [schedAgenda,      setSchedAgenda]      = useState("");
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
@@ -1004,12 +1010,18 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
           <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Meetings</div>
           <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{meetings.length} meetings</div>
         </div>
-        {isAdmin && (
-          <button className="btn" onClick={() => { setShowRec(v => !v); setRecording(false); setTranscribing(false); setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
-            style={{ background: showRec ? "#1A1A1A" : "linear-gradient(135deg,#C8A97E,#A07850)", color: "#fff", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>
-            {showRec ? "✕ Close" : "🎙 Record Meeting"}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button className="btn" onClick={() => setCalView(v => !v)}
+            style={{ background: calView ? "#1A1A1A" : "#F0EEE8", color: calView ? "#F7F6F2" : "#555", border: "none", borderRadius: 12, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>
+            {calView ? "☰ List" : "📅 Calendar"}
           </button>
-        )}
+          {isAdmin && (
+            <button className="btn" onClick={() => { setShowRec(v => !v); setRecording(false); setTranscribing(false); setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
+              style={{ background: showRec ? "#1A1A1A" : "linear-gradient(135deg,#C8A97E,#A07850)", color: "#fff", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>
+              {showRec ? "✕ Close" : "🎙 Record Meeting"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* AI Recorder Modal — admin only */}
@@ -1097,6 +1109,124 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
       )}
 
       {/* Meeting cards — newest first */}
+      {/* ── Calendar view ─────────────────────────────────────────── */}
+      {calView && (() => {
+        const CAL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        const CAL_DAYS   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+        const cy = calDate.getFullYear();
+        const cm = calDate.getMonth();
+        const firstDow  = new Date(cy, cm, 1).getDay();
+        const daysInMo  = new Date(cy, cm + 1, 0).getDate();
+        const todayDate = new Date();
+
+        const dayMtgMap = {};
+        meetings.forEach(m => {
+          const mi = CAL_MONTHS.findIndex(mn => m.date.toLowerCase().includes(mn.toLowerCase()));
+          const yr = (m.date.match(/\d{4}/) || [])[0];
+          const dy = (m.date.match(/\b(\d{1,2})\b/) || [])[1];
+          if (mi === cm && parseInt(yr) === cy && dy) dayMtgMap[parseInt(dy)] = m;
+        });
+
+        const cells = [];
+        for (let i = 0; i < firstDow; i++) cells.push(null);
+        for (let d = 1; d <= daysInMo; d++) cells.push(d);
+
+        return (
+          <div style={{ background: "#fff", borderRadius: 16, padding: 16, marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            {/* Month nav */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <button onClick={() => setCalDate(new Date(cy, cm - 1, 1))} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#888", padding: "2px 8px", lineHeight: 1 }}>‹</button>
+              <div style={{ fontWeight: 700, fontSize: 15, color: "#1A1A1A" }}>{CAL_MONTHS[cm]} {cy}</div>
+              <button onClick={() => setCalDate(new Date(cy, cm + 1, 1))} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#888", padding: "2px 8px", lineHeight: 1 }}>›</button>
+            </div>
+            {/* Day headers */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+              {CAL_DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "#BBB", padding: "2px 0", letterSpacing: 0.3 }}>{d}</div>)}
+            </div>
+            {/* Day cells */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
+              {cells.map((day, idx) => {
+                if (!day) return <div key={`e-${idx}`} />;
+                const hasMtg   = !!dayMtgMap[day];
+                const isToday  = cy === todayDate.getFullYear() && cm === todayDate.getMonth() && day === todayDate.getDate();
+                const cellDate = new Date(cy, cm, day);
+                const isPast   = cellDate < new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+                const canSched = isAdmin && !hasMtg && !isPast;
+                return (
+                  <div key={day}
+                    onClick={() => {
+                      if (hasMtg) setTranscriptMeeting(dayMtgMap[day]);
+                      else if (canSched) setScheduleDay(cellDate);
+                    }}
+                    style={{
+                      textAlign: "center",
+                      padding: "6px 2px 4px",
+                      borderRadius: 10,
+                      cursor: (hasMtg || canSched) ? "pointer" : "default",
+                      background: isToday ? "#1A1A1A" : hasMtg ? "#FBF5EC" : "transparent",
+                      transition: "background 0.12s",
+                    }}>
+                    <div style={{ fontSize: 13, fontWeight: (isToday || hasMtg) ? 700 : 400, color: isToday ? "#fff" : hasMtg ? "#A07850" : isPast ? "#CCC" : "#333" }}>{day}</div>
+                    {hasMtg && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#C8A97E", margin: "2px auto 0" }} />}
+                  </div>
+                );
+              })}
+            </div>
+            {isAdmin && <div style={{ fontSize: 10, color: "#CCC", textAlign: "center", marginTop: 10 }}>Tap a future date to schedule a meeting</div>}
+          </div>
+        );
+      })()}
+
+      {/* ── Schedule meeting modal ─────────────────────────────────── */}
+      {scheduleDay && createPortal(
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) { setScheduleDay(null); setSchedLoc(""); setSchedAgenda(""); } }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 400 }} className="fade-up">
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A", marginBottom: 4 }}>📅 Schedule Meeting</div>
+            <div style={{ fontSize: 13, color: "#999", marginBottom: 20 }}>
+              {scheduleDay.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Location *</div>
+            <input value={schedLoc} onChange={e => setSchedLoc(e.target.value)}
+              placeholder="e.g. Village Hall, Zoom, Member's Home"
+              style={{ width: "100%", border: "1.5px solid #E5E5E5", borderRadius: 10, padding: "10px 12px", fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none", fontFamily: "inherit" }} />
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Agenda (optional)</div>
+            <textarea value={schedAgenda} onChange={e => setSchedAgenda(e.target.value)}
+              rows={3} placeholder="What will be discussed?"
+              style={{ width: "100%", border: "1.5px solid #E5E5E5", borderRadius: 10, padding: "10px 12px", fontSize: 13, marginBottom: 22, boxSizing: "border-box", outline: "none", resize: "none", fontFamily: "inherit" }} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => { setScheduleDay(null); setSchedLoc(""); setSchedAgenda(""); }}
+                style={{ flex: 1, border: "1.5px solid #E5E5E5", background: "#fff", borderRadius: 12, padding: "11px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#555", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button
+                disabled={!schedLoc.trim() || scheduling}
+                onClick={async () => {
+                  setScheduling(true);
+                  const MN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+                  const dateStr = `${MN[scheduleDay.getMonth()]} ${scheduleDay.getDate()}, ${scheduleDay.getFullYear()}`;
+                  try {
+                    await api.addMeeting({ date: dateStr, location: schedLoc.trim(), agenda: schedAgenda.trim() || `${MN[scheduleDay.getMonth()]} ${scheduleDay.getFullYear()} meeting` });
+                    showToast(`Meeting scheduled for ${dateStr}`);
+                    onRefresh();
+                    setScheduleDay(null);
+                    setSchedLoc("");
+                    setSchedAgenda("");
+                  } catch (e) {
+                    showToast(e.message || "Failed to schedule", "error");
+                  } finally {
+                    setScheduling(false);
+                  }
+                }}
+                style={{ flex: 2, background: schedLoc.trim() ? "linear-gradient(135deg,#C8A97E,#A07850)" : "#E5E5E5", color: schedLoc.trim() ? "#fff" : "#AAA", border: "none", borderRadius: 12, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: schedLoc.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                {scheduling ? "Scheduling…" : "Schedule Meeting"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{[1,2,3].map(k => <Skeleton key={k} h={160} r={16} />)}</div>
       ) : meetings.length === 0 ? (
