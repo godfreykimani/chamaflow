@@ -21,7 +21,7 @@ const PORT       = process.env.PORT       || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || "chamaflow-dev-secret-change-in-production";
 const JWT_EXPIRY = process.env.JWT_EXPIRY || "7d";
 const DB_PATH    = process.env.DB_PATH    || path.join(__dirname, "chamaflow.db");
-const UPLOADS    = path.join(__dirname, "uploads");
+const UPLOADS    = process.env.UPLOADS_PATH || path.join(__dirname, "uploads");
 
 if (JWT_SECRET === "chamaflow-dev-secret-change-in-production" && process.env.NODE_ENV === "production") {
   console.error("❌  Set a real JWT_SECRET in .env for production!"); process.exit(1);
