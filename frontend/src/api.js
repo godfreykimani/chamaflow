@@ -141,6 +141,12 @@ export const transcribeMeeting = (id, audioBlob, provider = "groq") => {
 export const endorseMeeting = (id, type) =>
   request(`/meetings/${id}/endorse`, { method: "POST", body: JSON.stringify({ type }) });
 
+// ─── Bulk import ──────────────────────────────────────────────────────────────
+
+export const importMembers       = (members) => request("/import/members",       { method: "POST", body: JSON.stringify({ members }) });
+export const importContributions = (entries) => request("/import/contributions", { method: "POST", body: JSON.stringify({ entries }) });
+export const importMeetings      = (meetings) => request("/import/meetings",     { method: "POST", body: JSON.stringify({ meetings }) });
+
 // ─── Dashboard & Summary ──────────────────────────────────────────────────────
 
 export const getDashboard = (memberId) => request(`/dashboard/${memberId}`);

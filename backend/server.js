@@ -527,6 +527,76 @@ app.post("/api/contributions/bulk", requireAdmin, (req, res) => {
   ok(res, { inserted: results.length, skipped: skipped.length, ids: results }, 201);
 });
 
+// ─── Bulk import endpoints ────────────────────────────────────────────────────
+
+app.post("/api/import/members", requireAdmin, async (req, res) => {
+  const { members } = req.body;
+  if (!Array.isArray(members) || members.length === 0) return fail(res, "members[] required");
+  const defaultHash = await bcrypt.hash("1234", 10);
+  const insert   = db.prepare("INSERT INTO members (name,shares,role,phone,email,pin_hash,must_change_pin) VALUES (?,?,?,?,?,?,1)");
+  const checkDup = db.prepare("SELECT id FROM members WHERE phone=?");
+  const inserted = [], skipped = [], errors = [];
+  const tx = db.transaction(() => {
+    for (const m of members) {
+      const { name, phone, shares = 1, role = "Member" } = m;
+      if (!name || !phone) { errors.push(`Missing name or phone`); continue; }
+      const p = String(phone).replace(/[\s\-+]/g, "");
+      if (checkDup.get(p)) { skipped.push(p); continue; }
+      const r = insert.run(name.trim(), parseInt(shares) || 1, role || "Member", p, "", defaultHash);
+      inserted.push({ id: r.lastInsertRowid, name: name.trim(), phone: p });
+    }
+  });
+  tx();
+  audit(req.user.id, "BULK_IMPORT_MEMBERS", "members", { count: inserted.length, skipped: skipped.length });
+  ok(res, { inserted: inserted.length, skipped: skipped.length, errors, members: inserted }, 201);
+});
+
+app.post("/api/import/contributions", requireAdmin, (req, res) => {
+  const { entries } = req.body;
+  if (!Array.isArray(entries) || entries.length === 0) return fail(res, "entries[] required");
+  const getMember = db.prepare("SELECT id FROM members WHERE phone=?");
+  const insert    = db.prepare("INSERT INTO contributions (member_id,type,month,amount,method,ref,status,notes,recorded_by) VALUES (?,?,?,?,?,?,?,?,?)");
+  const checkDup  = db.prepare("SELECT id FROM contributions WHERE member_id=? AND month=? AND type=?");
+  const inserted = [], skipped = [], errors = [];
+  const tx = db.transaction(() => {
+    for (const e of entries) {
+      const { member_phone, type = "Contribution", month, amount, method = "M-Pesa", ref = "", notes = "" } = e;
+      if (!member_phone || !month || !amount) { errors.push(`Incomplete row for ${member_phone}`); continue; }
+      const p = String(member_phone).replace(/[\s\-+]/g, "");
+      const member = getMember.get(p);
+      if (!member) { errors.push(`Member not found: ${p}`); continue; }
+      const parsed = parseFloat(amount);
+      if (isNaN(parsed) || parsed <= 0) { errors.push(`Invalid amount for ${p}`); continue; }
+      if (checkDup.get(member.id, month, type)) { skipped.push(`${p}/${month}/${type}`); continue; }
+      const r = insert.run(member.id, type, month, parsed, method, ref, "Paid", notes, req.user.id);
+      inserted.push(r.lastInsertRowid);
+    }
+  });
+  tx();
+  audit(req.user.id, "BULK_IMPORT_CONTRIBUTIONS", "contributions", { count: inserted.length, skipped: skipped.length });
+  ok(res, { inserted: inserted.length, skipped: skipped.length, errors, ids: inserted }, 201);
+});
+
+app.post("/api/import/meetings", requireAdmin, (req, res) => {
+  const { meetings } = req.body;
+  if (!Array.isArray(meetings) || meetings.length === 0) return fail(res, "meetings[] required");
+  const insert   = db.prepare("INSERT INTO meetings (date,location,agenda,status) VALUES (?,?,?,?)");
+  const checkDup = db.prepare("SELECT id FROM meetings WHERE date=?");
+  const inserted = [], skipped = [];
+  const tx = db.transaction(() => {
+    for (const m of meetings) {
+      const { date, location, agenda = "", status = "Pending" } = m;
+      if (!date || !location) continue;
+      if (checkDup.get(date.trim())) { skipped.push(date); continue; }
+      const r = insert.run(date.trim(), location.trim(), agenda.trim(), status || "Pending");
+      inserted.push(r.lastInsertRowid);
+    }
+  });
+  tx();
+  audit(req.user.id, "BULK_IMPORT_MEETINGS", "meetings", { count: inserted.length });
+  ok(res, { inserted: inserted.length, skipped: skipped.length, ids: inserted }, 201);
+});
+
 const storage = multer.diskStorage({ destination:(_,__,cb)=>cb(null,UPLOADS), filename:(_,f,cb)=>cb(null,`${uuidv4()}${path.extname(f.originalname)}`) });
 const upload  = multer({ storage, limits:{fileSize:5*1024*1024} });
 

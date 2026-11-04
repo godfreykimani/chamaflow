@@ -275,13 +275,14 @@ function ChamaFlow({ onLogout }) {
   }, []);
 
   // ── Fetch all members ──
-  useEffect(() => {
+  const loadMembers = useCallback(() => {
     setLoad("members", true);
     api.getMembers()
       .then(setMembers)
       .catch(() => showToast("Could not load members", "error"))
       .finally(() => setLoad("members", false));
   }, []);
+  useEffect(() => { loadMembers(); }, [loadMembers]);
 
   // ── Fetch dashboard when user is set ──
   const loadDashboard = useCallback(() => {
@@ -572,7 +573,7 @@ function ChamaFlow({ onLogout }) {
               {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
-              {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} />}
+              {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} showToast={showToast} onRefresh={loadMembers} />}
               {page === "report"  && isAdmin && <AnnualReportPage report={annualReport} loading={loading.report} year={reportYear} setYear={setReportYear} />}
               {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} memberCount={members.filter(m => m.active).length} />}
             </div>
@@ -2313,9 +2314,177 @@ function EmptyState({ type = "contributions", title, subtitle, action, onAction 
   );
 }
 
+// ── Import Data Modal ─────────────────────────────────────────────────────────
+
+function ImportDataModal({ onClose, showToast, onRefresh }) {
+  const [tab, setTab] = useState("members");
+  const [file, setFile] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [headers, setHeaders] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
+  const fileRef = useRef(null);
+
+  const TEMPLATES = {
+    members:       { headers: ["name","phone","shares","role"],         hint: "role: Member/Secretary/Chairman; shares defaults to 1" },
+    contributions: { headers: ["member_phone","type","month","amount","method"], hint: "type: Contribution; month: e.g. January 2025; method: M-Pesa" },
+    fines:         { headers: ["member_phone","type","month","amount","notes"],  hint: "type: Fine/Lateness/Late Contribution; month: January 2025" },
+    meetings:      { headers: ["date","location","agenda","status"],    hint: "date: January 30, 2025; status: Pending/Completed" },
+  };
+
+  function downloadTemplate() {
+    const { headers: h } = TEMPLATES[tab];
+    const csv = h.join(",") + "\n";
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = `template_${tab}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return { headers: [], rows: [] };
+    const hdrs = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+    const data = lines.slice(1).map(line => {
+      const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+      const obj = {};
+      hdrs.forEach((h, i) => { obj[h] = vals[i] || ""; });
+      return obj;
+    });
+    return { headers: hdrs, rows: data };
+  }
+
+  function onFileChange(e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    setFile(f); setResult(null);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const { headers: h, rows: r } = parseCSV(ev.target.result);
+      setHeaders(h); setRows(r);
+    };
+    reader.readAsText(f);
+  }
+
+  async function doImport() {
+    if (!rows.length) return;
+    setImporting(true); setResult(null);
+    try {
+      let res;
+      if (tab === "members")       res = await api.importMembers(rows);
+      else if (tab === "fines")    res = await api.importContributions(rows);
+      else if (tab === "contributions") res = await api.importContributions(rows);
+      else                         res = await api.importMeetings(rows);
+      setResult({ ok: true, inserted: res.inserted, skipped: res.skipped, errors: res.errors || [] });
+      showToast(`Imported ${res.inserted} record${res.inserted !== 1 ? "s" : ""}${res.skipped ? `, ${res.skipped} skipped` : ""}`, "success");
+      onRefresh();
+    } catch (err) {
+      setResult({ ok: false, error: err.message });
+      showToast("Import failed: " + err.message, "error");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const TABS = [["members","Members"],["contributions","Contributions"],["fines","Fines"],["meetings","Meetings"]];
+
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 540, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A" }}>📥 Import Data</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#999", lineHeight: 1 }}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 6, padding: "14px 20px 0" }}>
+          {TABS.map(([k, label]) => (
+            <button key={k} onClick={() => { setTab(k); setFile(null); setRows([]); setHeaders([]); setResult(null); }}
+              style={{ background: tab === k ? "#1A1A1A" : "#F0EEE8", color: tab === k ? "#F7F6F2" : "#555", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
+          <div style={{ background: "#F8F7F3", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "#555", marginBottom: 6, fontWeight: 600 }}>CSV format hint</div>
+            <code style={{ fontSize: 11, color: "#777", display: "block" }}>{TEMPLATES[tab].headers.join(", ")}</code>
+            <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>{TEMPLATES[tab].hint}</div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <button className="btn" onClick={downloadTemplate}
+              style={{ flex: 1, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 0", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              ⬇ Download Template
+            </button>
+            <button className="btn" onClick={() => fileRef.current?.click()}
+              style={{ flex: 1, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 0", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              📂 Choose CSV File
+            </button>
+            <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={onFileChange} />
+          </div>
+
+          {file && (
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>
+              <strong>{file.name}</strong> — {rows.length} row{rows.length !== 1 ? "s" : ""} detected
+            </div>
+          )}
+
+          {rows.length > 0 && (
+            <div style={{ overflowX: "auto", marginBottom: 14, border: "1px solid #EEE", borderRadius: 10 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ background: "#F8F7F3" }}>
+                    {headers.map(h => <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#555", whiteSpace: "nowrap" }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 5).map((r, i) => (
+                    <tr key={i} style={{ borderTop: "1px solid #F0EEE8" }}>
+                      {headers.map(h => <td key={h} style={{ padding: "6px 10px", color: "#333", whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>{r[h]}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {rows.length > 5 && <div style={{ padding: "6px 10px", fontSize: 11, color: "#999" }}>…and {rows.length - 5} more row{rows.length - 5 !== 1 ? "s" : ""}</div>}
+            </div>
+          )}
+
+          {result && (
+            <div style={{ background: result.ok ? "#E8F5E9" : "#FFEBEE", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+              {result.ok ? (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#2E7D32" }}>✓ Import complete</div>
+                  <div style={{ fontSize: 12, color: "#388E3C", marginTop: 4 }}>
+                    {result.inserted} inserted{result.skipped ? `, ${result.skipped} skipped (duplicates)` : ""}
+                  </div>
+                  {result.errors?.length > 0 && (
+                    <div style={{ fontSize: 11, color: "#E65100", marginTop: 6 }}>
+                      {result.errors.slice(0, 5).map((e, i) => <div key={i}>⚠ {e}</div>)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: "#C62828", fontWeight: 600 }}>✗ {result.error}</div>
+              )}
+            </div>
+          )}
+
+          <button className="btn" onClick={doImport} disabled={importing || rows.length === 0}
+            style={{ width: "100%", background: rows.length > 0 ? "#1A1A1A" : "#CCC", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, cursor: rows.length > 0 ? "pointer" : "default" }}>
+            {importing ? "Importing…" : `Import ${rows.length} row${rows.length !== 1 ? "s" : ""}`}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Members Page ──────────────────────────────────────────────────────────────
 
-function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode }) {
+function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode, showToast, onRefresh }) {
+  const [showImport, setShowImport] = useState(false);
   const active = members.filter(m => m.active).length;
   const isDesktop = viewMode === "desktop";
   return (
@@ -2325,8 +2494,12 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode }) {
           <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Members</div>
           <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{active} active</div>
         </div>
-        <button className="btn" onClick={onAdd} style={{ background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "8px 16px", fontSize: 12, fontWeight: 700 }}>+ Add</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={() => setShowImport(true)} style={{ background: "#F0EEE8", color: "#555", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>📥 Import</button>
+          <button className="btn" onClick={onAdd} style={{ background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "8px 16px", fontSize: 12, fontWeight: 700 }}>+ Add</button>
+        </div>
       </div>
+      {showImport && <ImportDataModal onClose={() => setShowImport(false)} showToast={showToast} onRefresh={onRefresh} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
         {[["Chairman",members.filter(m=>m.role==="Chairman"&&m.active).length,"#FFF8E1","#F57F17"],["Secretary",members.filter(m=>m.role==="Secretary"&&m.active).length,"#E8F5E9","#2E7D32"],["Members",members.filter(m=>m.role==="Member"&&m.active).length,"#E3F2FD","#1565C0"]].map(([r,c,bg,tc]) => (
