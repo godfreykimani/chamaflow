@@ -57,6 +57,12 @@ const NAV_ITEMS = [
   { id: "settings",      label: "Settings",      icon: "settings", section: "Other" },
 ];
 
+const AVATAR_COLORS = [
+  "#2563eb","#16a34a","#dc2626","#d97706","#9333ea",
+  "#0891b2","#c2410c","#4f46e5","#be185d","#065f46",
+  "#92400e","#1e40af",
+];
+
 // ── Shared UI primitives ──────────────────────────────────────────────────────
 
 function Tag({ label, color, text, border }) {
@@ -356,10 +362,10 @@ function ChamaFlow({ onLogout }) {
     loadMeetings();
   }, [page]);
 
-  // ── Refetch contributions for Record page summary ──
+  // ── Refetch contributions for Record page summary + Dashboard ──
   const [monthlySummary, setMonthlySummary] = useState(null);
   useEffect(() => {
-    if (page !== "record") return;
+    if (page !== "record" && page !== "dashboard") return;
     setLoad("summary", true);
     api.getMonthlySummary(getCurrentMonth())
       .then(setMonthlySummary)
@@ -553,8 +559,28 @@ function ChamaFlow({ onLogout }) {
               })}
             </div>
 
+            {/* Cycle progress bar */}
+            {(() => {
+              const now2 = new Date();
+              const daysInMonth = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate();
+              const dayOfMonth = now2.getDate();
+              const pct2 = Math.round((dayOfMonth / daysInMonth) * 100);
+              return (
+                <div style={{ padding: "12px 18px", borderTop: `1px solid ${T.border}`, marginTop: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                    <span style={{ fontSize: 10, color: T.fg3, fontWeight: 500, letterSpacing: ".05em", textTransform: "uppercase" }}>Cycle Progress</span>
+                    <span style={{ fontSize: 10, color: T.fg2, fontWeight: 600 }}>{pct2}%</span>
+                  </div>
+                  <div style={{ background: T.border, borderRadius: 4, height: 4, overflow: "hidden" }}>
+                    <div style={{ width: `${pct2}%`, height: "100%", background: T.accent, borderRadius: 4, transition: "width 1s ease" }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: T.fg3, marginTop: 4 }}>Day {dayOfMonth} of {daysInMonth}</div>
+                </div>
+              );
+            })()}
+
             {/* API status + user footer */}
-            <div style={{ padding: "16px 10px 0", borderTop: `1px solid ${T.border}`, marginTop: "auto" }}>
+            <div style={{ padding: "16px 10px 0", borderTop: `1px solid ${T.border}` }}>
               {apiOnline !== null && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 8px", marginBottom: 12 }}>
                   <div style={{ width: 7, height: 7, borderRadius: "50%", background: apiOnline ? T.green : T.red, flexShrink: 0 }} />
@@ -609,8 +635,8 @@ function ChamaFlow({ onLogout }) {
             )}
 
             <div style={{ padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
-              {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} />}
-              {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} />}
+              {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} monthlySummary={monthlySummary} />}
+              {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} viewMode={viewMode} />}
               {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
               {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
               {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} showToast={showToast} onRefresh={loadMembers} />}
@@ -646,13 +672,15 @@ function ChamaFlow({ onLogout }) {
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 
-function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh }) {
+function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh, members, monthlySummary }) {
   const isDesktop = viewMode === "desktop";
   if (loading) return (
     <div style={{ padding: isDesktop ? 0 : 20 }}>
-      <div style={{ marginBottom: 24 }}><Skeleton h={14} w={80} /><div style={{ marginTop: 8 }}><Skeleton h={28} w={200} /></div></div>
-      <Skeleton h={130} r={20} />
-      <div style={{ marginTop: 12 }}><Skeleton h={100} r={16} /></div>
+      <div style={{ marginBottom: 20 }}><Skeleton h={14} w={120} /><div style={{ marginTop: 6 }}><Skeleton h={26} w={180} /></div></div>
+      <Skeleton h={110} r={16} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
+        <Skeleton h={80} r={14} /><Skeleton h={80} r={14} /><Skeleton h={80} r={14} /><Skeleton h={80} r={14} />
+      </div>
     </div>
   );
 
@@ -660,111 +688,158 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
   const monthlyExpected = dashboard?.monthly_expected ?? (member?.shares || 1) * 5000;
   const monthlyPaid     = dashboard?.monthly_paid     ?? 0;
   const isPaid          = dashboard?.contribution_status === "Paid";
-  const pct             = Math.min((monthlyPaid / monthlyExpected) * 100, 100);
 
-  const heroCard = (
-    <div style={{ background: `linear-gradient(135deg,${T.accent},#1d4ed8)`, borderRadius: 20, padding: 24, marginBottom: 14, position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-      <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh balance"
-        style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#fff", fontSize: 18, transition: "background 0.15s", zIndex: 1 }}>
+  // Ring gauge — % of members who paid this month from monthlySummary
+  const activeMembers  = members?.filter(m => m.active) ?? [];
+  const paidCount      = monthlySummary?.filter(s => s.status === "Paid").length ?? (isPaid ? 1 : 0);
+  const totalActive    = activeMembers.length || 1;
+  const paidPct        = Math.round((paidCount / totalActive) * 100);
+  const R = 42, C = 2 * Math.PI * R;
+  const dash = (paidPct / 100) * C;
+
+  // Metric tiles
+  const myPct = Math.min(Math.round((monthlyPaid / monthlyExpected) * 100), 100);
+
+  const statusBanner = (
+    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px 24px", marginBottom: 14, display: "flex", alignItems: "center", gap: 20 }}>
+      {/* Ring gauge */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <svg width={100} height={100} viewBox="0 0 100 100">
+          <circle cx={50} cy={50} r={R} fill="none" stroke={T.border} strokeWidth={9} />
+          <circle cx={50} cy={50} r={R} fill="none" stroke={T.accent} strokeWidth={9}
+            strokeDasharray={`${dash} ${C - dash}`} strokeLinecap="round"
+            transform="rotate(-90 50 50)" style={{ transition: "stroke-dasharray 1s ease" }} />
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.fg, lineHeight: 1 }}>{paidPct}%</div>
+          <div style={{ fontSize: 9, color: T.fg3, marginTop: 2 }}>paid</div>
+        </div>
+      </div>
+      {/* Status text */}
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 10, color: T.fg3, letterSpacing: ".05em", textTransform: "uppercase", marginBottom: 4 }}>{CURRENT_MONTH}</div>
+        <div style={{ fontSize: 20, fontWeight: 400, color: T.fg, fontFamily: T.serif, letterSpacing: "-0.5px", marginBottom: 6 }}>
+          {paidCount} of {totalActive} paid
+        </div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: isPaid ? T.grnL : T.ambL, border: `1px solid ${isPaid ? "#86efac" : "#fcd34d"}` }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: isPaid ? T.green : T.amber }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: isPaid ? T.green : T.amber }}>
+            {isPaid ? "Your contribution is paid" : "Your contribution is pending"}
+          </span>
+        </div>
+      </div>
+      {/* Refresh */}
+      <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh"
+        style={{ background: T.sf2, border: `1px solid ${T.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.fg2, fontSize: 18, flexShrink: 0 }}>
         <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
       </button>
-      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", letterSpacing: 1, marginBottom: 8 }}>TOTAL SAVINGS</div>
-      <div style={{ fontSize: 34, fontWeight: 700, color: "#fff", letterSpacing: "-1px", fontFamily: T.serif }}>{fmt(totalSavings)}</div>
-      <div style={{ marginTop: 16, display: "flex", gap: 16 }}>
-        {[["SHARES", member?.shares ?? 1], ["MONTHLY", fmt(monthlyExpected)], ["ROLE", role]].map(([k, v], i) => (
-          <div key={k} style={{ display: "flex", gap: 16, alignItems: "center" }}>
-            {i > 0 && <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.2)" }} />}
-            <div>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", letterSpacing: 0.5 }}>{k}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginTop: 2 }}>{v}</div>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 
-  const monthlyCard = (
-    <div className="card" style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", position: "relative" }}>
-      <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh contributions"
-        style={{ position: "absolute", top: 14, right: 14, background: "rgba(0,0,0,0.04)", border: "none", borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#1A1A1A", fontSize: 20, transition: "background 0.15s", zIndex: 1 }}>
-        <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
-      </button>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingRight: 36 }}>
-        <div>
-          <div style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>{CURRENT_MONTH}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A" }}>{fmt(monthlyExpected)}</div>
+  const metricTiles = (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+      {[
+        { label: "Total Savings", value: fmt(totalSavings), sub: "Group fund", bg: T.accL, accent: T.accent },
+        { label: "My Monthly Due", value: fmt(monthlyExpected), sub: `${myPct}% paid`, bg: isPaid ? T.grnL : T.ambL, accent: isPaid ? T.green : T.amber },
+        { label: "My Shares", value: member?.shares ?? 1, sub: "share unit" + ((member?.shares ?? 1) > 1 ? "s" : ""), bg: T.sf2, accent: T.fg2 },
+        { label: "Role", value: role, sub: "access level", bg: T.sf2, accent: T.fg2 },
+      ].map(({ label, value, sub, bg, accent }) => (
+        <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ fontSize: 10, color: T.fg3, letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: accent, lineHeight: 1, marginBottom: 4 }}>{value}</div>
+          <div style={{ fontSize: 11, color: T.fg3 }}>{sub}</div>
         </div>
-        <div style={{ padding: "6px 14px", borderRadius: 20, background: isPaid ? "#E8F5E9" : "#FFF3E0", color: isPaid ? "#2E7D32" : "#E65100", fontSize: 12, fontWeight: 600 }}>
-          {isPaid ? "✓ Paid" : "○ Pending"}
-        </div>
+      ))}
+    </div>
+  );
+
+  // Member grid (3 col on desktop, 4 col on wide)
+  const memberGrid = activeMembers.length > 0 && (
+    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Members</div>
+        <button onClick={() => setPage("members")} style={{ background: "none", border: "none", fontSize: 11, color: T.accent, cursor: "pointer", fontWeight: 500 }}>
+          View all →
+        </button>
       </div>
-      <div style={{ background: "#F0EEE8", borderRadius: 6, height: 8, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: isPaid ? "linear-gradient(90deg,#4CAF50,#66BB6A)" : "linear-gradient(90deg,#FF9800,#FFC107)", borderRadius: 6, transition: "width 1s ease" }} />
-      </div>
-      <div style={{ fontSize: 11, color: "#999", marginTop: 8 }}>
-        {isPaid ? `Paid ${fmt(monthlyPaid)}` : `${fmt(monthlyPaid)} of ${fmt(monthlyExpected)} paid · Due ${CURRENT_MONTH}`}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
+        {activeMembers.slice(0, isDesktop ? 12 : 8).map((m, i) => {
+          const paid = monthlySummary?.find(s => s.member_id === m.id)?.status === "Paid";
+          const bg   = AVATAR_COLORS[i % AVATAR_COLORS.length];
+          return (
+            <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "10px 6px", borderRadius: 10, background: T.sf2 }}>
+              <div style={{ position: "relative" }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13 }}>
+                  {m.name?.charAt(0)}
+                </div>
+                <div style={{ position: "absolute", bottom: -1, right: -1, width: 11, height: 11, borderRadius: "50%", border: "2px solid #fff", background: paid ? T.green : T.amber }} />
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 500, color: T.fg, textAlign: "center", lineHeight: 1.3, maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
+                {m.name?.split(" ")[0]}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 
   const activityCard = (
-    <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
-      <div style={{ padding: "16px 20px 0", fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>Recent Activity</div>
+    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+      <div style={{ padding: "16px 20px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Recent Activity</div>
+        <button onClick={() => setPage("contributions")} style={{ background: "none", border: "none", fontSize: 11, color: T.accent, cursor: "pointer", fontWeight: 500 }}>View all →</button>
+      </div>
       {dashboard?.recent_contributions?.length > 0 ? (
-        <div style={{ padding: "12px 20px 20px" }}>
-          {dashboard.recent_contributions.map((c, i, arr) => {
+        <div style={{ padding: "0 20px 16px" }}>
+          {dashboard.recent_contributions.slice(0, 6).map((c, i, arr) => {
             const tm = TYPE_META[c.type] || TYPE_META.Contribution;
             return (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? "1px solid #F5F4F0" : "none", marginBottom: i < arr.length - 1 ? 12 : 0 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.status === "Confirmed" ? "#4CAF50" : "#FF9800", flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, color: "#333" }}>{c.type} — {c.month}</div>
-                  <div style={{ fontSize: 10, color: "#BBB", marginTop: 1 }}>{c.method} · {c.ref}</div>
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : "none", marginBottom: i < arr.length - 1 ? 12 : 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: tm.bg, border: `1px solid ${tm.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: tm.text, flexShrink: 0 }}>
+                  {tm.icon}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: tm.text }}>{fmt(c.amount)}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{c.member_name || "You"} · {c.month}</div>
+                  <div style={{ fontSize: 10, color: T.fg3, marginTop: 1 }}>{c.type} · {c.method}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: tm.text, textAlign: "right" }}>{fmt(c.amount)}</div>
+                  <div style={{ fontSize: 10, color: c.status === "Confirmed" ? T.green : T.amber, textAlign: "right", marginTop: 1 }}>{c.status}</div>
+                </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <EmptyState type="activity" title="No recent activity" subtitle="Your recent payments will show up here." />
+        <div style={{ padding: "12px 20px 20px", fontSize: 12, color: T.fg3, textAlign: "center" }}>No recent activity</div>
       )}
     </div>
   );
 
   return (
     <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ fontSize: 13, color: T.fg3 }}>Good morning,</div>
-        <div style={{ fontSize: 26, fontWeight: 400, color: T.fg, letterSpacing: "-0.5px", fontFamily: T.serif }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: T.fg3 }}>Welcome back,</div>
+        <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, letterSpacing: "-0.5px", fontFamily: T.serif }}>
           {member?.name?.split(" ")[0] ?? "…"}
         </div>
       </div>
 
       {isDesktop ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          {/* Left column */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
           <div>
-            {heroCard}
-            {monthlyCard}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <QuickCard title="Contributions" sub="View all records" icon="◈" color="#E8F0FE" iconColor="#1565C0" onClick={() => setPage("contributions")} />
-              <QuickCard title="Meetings"      sub="View minutes"    icon="◉" color="#F3E5F5" iconColor="#6A1B9A" onClick={() => setPage("meetings")} />
-            </div>
+            {statusBanner}
+            {metricTiles}
+            {memberGrid}
           </div>
-          {/* Right column */}
           <div>{activityCard}</div>
         </div>
       ) : (
         <>
-          {heroCard}
-          {monthlyCard}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <QuickCard title="Contribution History" sub="View all records" icon="◈" color="#E8F0FE" iconColor="#1565C0" onClick={() => setPage("contributions")} />
-            <QuickCard title="Previous Meetings"    sub="View minutes"    icon="◉" color="#F3E5F5" iconColor="#6A1B9A" onClick={() => setPage("meetings")} />
-          </div>
+          {statusBanner}
+          {metricTiles}
+          {memberGrid}
           {activityCard}
         </>
       )}
@@ -772,19 +847,10 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
   );
 }
 
-function QuickCard({ title, sub, icon, color, iconColor, onClick }) {
-  return (
-    <button onClick={onClick} className="card btn" style={{ background: "#fff", borderRadius: 16, padding: 18, border: "none", textAlign: "left", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", width: "100%", cursor: "pointer" }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: iconColor, marginBottom: 10 }}>{icon}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", lineHeight: 1.3 }}>{title}</div>
-      <div style={{ fontSize: 11, color: "#999", marginTop: 3 }}>{sub}</div>
-    </button>
-  );
-}
-
 // ── Contributions Page ────────────────────────────────────────────────────────
 
-function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh }) {
+function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh, viewMode }) {
+  const isDesktop     = viewMode === "desktop";
   const totalShares   = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
   const totalFines       = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
   const totalLateness    = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
@@ -793,7 +859,7 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
   const selectedMemberName = members.find(m => m.id === parseInt(filterMember))?.name;
 
   return (
-    <div style={{ padding: 20 }} className="fade-up">
+    <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Contributions</div>
         <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>
@@ -871,8 +937,8 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
       <div style={{ fontSize: 11, color: "#BBB", marginBottom: 12 }}>{loading ? "Loading…" : `${contributions.length} record${contributions.length !== 1 ? "s" : ""}`}</div>
 
       {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {[1,2,3].map(k => <Skeleton key={k} h={100} r={14} />)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[1,2,3,4,5].map(k => <Skeleton key={k} h={52} r={10} />)}
         </div>
       ) : contributions.length === 0 ? (
         <EmptyState
@@ -883,35 +949,40 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
             : "No payments have been recorded yet for this period."}
         />
       ) : (
-        <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 19, top: 0, bottom: 0, width: 2, background: "#ECEAE4" }} />
+        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+          {/* Table header */}
+          <div style={{ display: "grid", gridTemplateColumns: isAdmin ? "2fr 1.2fr 1.2fr 1fr 1fr 1fr auto" : "2fr 1.2fr 1.2fr 1fr 1fr auto", padding: "10px 16px", background: T.sf2, borderBottom: `1px solid ${T.border}` }}>
+            {(isAdmin ? ["Member","Month","Type","Amount","Method","Status",""] : ["Month","Type","Amount","Method","Status",""]).map((h, i) => (
+              <div key={i} style={{ fontSize: 10, fontWeight: 600, color: T.fg3, letterSpacing: ".05em", textTransform: "uppercase", textAlign: i > (isAdmin ? 2 : 1) ? "right" : "left" }}>{h}</div>
+            ))}
+          </div>
           {contributions.map((c, i) => {
             const tm = TYPE_META[c.type] || TYPE_META.Contribution;
             return (
-              <div key={c.id} style={{ display: "flex", gap: 14, marginBottom: 14, position: "relative", animation: `fadeUp 0.25s ease ${Math.min(i,12)*0.04}s both` }}>
-                <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, zIndex: 1, background: tm.bg, border: `2px solid ${tm.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: tm.text, fontSize: 15 }}>
-                  {c.status === "Confirmed" ? tm.icon : "○"}
+              <div key={c.id} style={{ display: "grid", gridTemplateColumns: isAdmin ? "2fr 1.2fr 1.2fr 1fr 1fr 1fr auto" : "2fr 1.2fr 1.2fr 1fr 1fr auto", padding: "12px 16px", borderBottom: i < contributions.length - 1 ? `1px solid ${T.border}` : "none", alignItems: "center", animation: `fadeUp 0.2s ease ${Math.min(i,10)*0.03}s both` }}>
+                {isAdmin && (
+                  <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{c.member_name}</div>
+                )}
+                <div style={{ fontSize: 12, color: T.fg2 }}>{c.month}</div>
+                <div>
+                  <span style={{ padding: "3px 9px", borderRadius: 20, background: tm.bg, color: tm.text, fontSize: 11, fontWeight: 600, border: `1px solid ${tm.border}` }}>{tm.icon} {c.type}</span>
                 </div>
-                <div style={{ flex: 1, background: "#fff", borderRadius: 14, padding: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", borderLeft: `3px solid ${tm.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1A1A1A" }}>{c.month}</div>
-                      {filterMember === "All" && isAdmin && <div style={{ fontSize: 11, color: "#999", marginTop: 1 }}>{c.member_name}</div>}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: tm.text }}>{fmt(c.amount)}</div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: c.status === "Pending" && isAdmin ? 10 : 0 }}>
-                    <span style={{ padding: "3px 10px", borderRadius: 20, background: tm.bg, color: tm.text, fontSize: 11, fontWeight: 700, border: `1px solid ${tm.border}` }}>{tm.icon} {c.type}</span>
-                    <Tag label={c.method} color={c.method === "M-Pesa" ? "#E3F2FD" : "#F3E5F5"} text={c.method === "M-Pesa" ? "#1565C0" : "#6A1B9A"} />
-                    <Tag label={c.status} color={c.status === "Confirmed" ? "#E8F5E9" : "#FFF3E0"} text={c.status === "Confirmed" ? "#2E7D32" : "#E65100"} />
-                  </div>
-                  {c.status === "Pending" && isAdmin && (
+                <div style={{ fontSize: 13, fontWeight: 700, color: tm.text, textAlign: "right" }}>{fmt(c.amount)}</div>
+                <div style={{ textAlign: "right" }}>
+                  <Tag label={c.method} color={c.method === "M-Pesa" ? "#E3F2FD" : "#F3E5F5"} text={c.method === "M-Pesa" ? "#1565C0" : "#6A1B9A"} />
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <Tag label={c.status} color={c.status === "Confirmed" ? T.grnL : T.ambL} text={c.status === "Confirmed" ? T.green : T.amber} />
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  {c.status === "Pending" && isAdmin ? (
                     <button className="btn" onClick={() => onConfirm(c.id)} disabled={confirmingId === c.id}
-                      style={{ background: confirmingId === c.id ? "#CCC" : "#1A1A1A", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 11, fontWeight: 600, marginTop: 2 }}>
-                      {confirmingId === c.id ? "Confirming…" : "Confirm Payment"}
+                      style={{ background: confirmingId === c.id ? T.border : T.fg, color: confirmingId === c.id ? T.fg3 : "#fff", border: "none", borderRadius: 7, padding: "5px 11px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {confirmingId === c.id ? "…" : "Confirm"}
                     </button>
+                  ) : (
+                    <span style={{ fontSize: 10, color: T.fg3 }}>{c.ref ? `#${c.ref}` : "—"}</span>
                   )}
-                  <div style={{ fontSize: 10, color: "#CCC", marginTop: 8 }}>Ref: {c.ref || "—"} · {c.created_at?.slice(0,16)}</div>
                 </div>
               </div>
             );
@@ -2528,56 +2599,72 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode, show
   const active = members.filter(m => m.active).length;
   const isDesktop = viewMode === "desktop";
   return (
-    <div style={{ padding: 20 }} className="fade-up">
+    <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div>
           <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Members</div>
-          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{active} active</div>
+          <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>{active} active · {members.length} total</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn" onClick={() => setShowImport(true)} style={{ background: "#F0EEE8", color: "#555", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>📥 Import</button>
-          <button className="btn" onClick={onAdd} style={{ background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "8px 16px", fontSize: 12, fontWeight: 700 }}>+ Add</button>
+          <button className="btn" onClick={() => setShowImport(true)} style={{ background: T.sf2, color: T.fg2, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>Import</button>
+          <button className="btn" onClick={onAdd} style={{ background: T.fg, color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Member
+          </button>
         </div>
       </div>
       {showImport && <ImportDataModal onClose={() => setShowImport(false)} showToast={showToast} onRefresh={onRefresh} />}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
-        {[["Chairman",members.filter(m=>m.role==="Chairman"&&m.active).length,"#FFF8E1","#F57F17"],["Secretary",members.filter(m=>m.role==="Secretary"&&m.active).length,"#E8F5E9","#2E7D32"],["Members",members.filter(m=>m.role==="Member"&&m.active).length,"#E3F2FD","#1565C0"]].map(([r,c,bg,tc]) => (
-          <div key={r} style={{ background: bg, borderRadius: 14, padding: "12px 10px", textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: tc }}>{c}</div>
-            <div style={{ fontSize: 9, color: tc, opacity: 0.8, marginTop: 2 }}>{r}</div>
+      {/* Role stat tiles */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
+        {[
+          ["Chairman", members.filter(m=>m.role==="Chairman"&&m.active).length, T.ambL, T.amber],
+          ["Secretary", members.filter(m=>m.role==="Secretary"&&m.active).length, T.grnL, T.green],
+          ["Members",   members.filter(m=>m.role==="Member"&&m.active).length,  T.accL, T.accent],
+        ].map(([r, c, bg, tc]) => (
+          <div key={r} style={{ background: bg, border: `1px solid ${tc}22`, borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: tc }}>{c}</div>
+            <div style={{ fontSize: 10, color: tc, fontWeight: 500, marginTop: 3 }}>{r}</div>
           </div>
         ))}
       </div>
 
       {loading ? (
-        <div style={{ display: isDesktop ? "grid" : "flex", gridTemplateColumns: isDesktop ? "1fr 1fr" : undefined, flexDirection: "column", gap: 10 }}>{[1,2,3,4].map(k => <Skeleton key={k} h={80} r={14} />)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr", gap: 10 }}>
+          {[1,2,3,4,5,6].map(k => <Skeleton key={k} h={110} r={14} />)}
+        </div>
       ) : members.length === 0 ? (
         <EmptyState type="members" title="No members yet" subtitle="Add your first member to get started." action="+ Add Member" onAction={onAdd} />
-      ) : <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: isDesktop ? "1fr 1fr" : undefined, gap: 10 }}>{members.map((m, i) => (
-        <div key={m.id} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, boxShadow: "0 1px 6px rgba(0,0,0,0.05)", animation: `fadeUp 0.25s ease ${Math.min(i,10)*0.04}s both`, opacity: m.active ? 1 : 0.6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: m.role === "Chairman" ? "linear-gradient(135deg,#FFD54F,#FF8F00)" : m.role === "Secretary" ? "linear-gradient(135deg,#81C784,#2E7D32)" : "linear-gradient(135deg,#90CAF9,#1565C0)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-              {m.name?.charAt(0)}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>{m.name}</div>
-                {!m.active && <Tag label="Inactive" color="#F5F4F0" text="#999" />}
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(3, 1fr)" : "1fr", gap: 10 }}>
+          {members.map((m, i) => {
+            const avatarBg = AVATAR_COLORS[i % AVATAR_COLORS.length];
+            return (
+              <div key={m.id} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, animation: `fadeUp 0.2s ease ${Math.min(i,10)*0.03}s both`, opacity: m.active ? 1 : 0.55 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>
+                    {m.name?.charAt(0)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>{m.name}</div>
+                      {!m.active && <Tag label="Inactive" color={T.sf2} text={T.fg3} />}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.fg3, marginTop: 2 }}>{m.role} · {m.shares} share{m.shares !== 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: 11, color: T.fg3 }}>{m.phone}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 7 }}>
+                  <button className="btn" onClick={() => onEdit(m)} style={{ flex: 1, background: T.sf2, color: T.fg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 0", fontSize: 11, fontWeight: 600 }}>Edit</button>
+                  <button className="btn" onClick={() => onToggle(m.id, !!m.active)} style={{ flex: 1, background: m.active ? T.ambL : T.grnL, color: m.active ? T.amber : T.green, border: `1px solid ${m.active ? "#fcd34d" : "#86efac"}`, borderRadius: 8, padding: "7px 0", fontSize: 11, fontWeight: 600 }}>
+                    {m.active ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
               </div>
-              <div style={{ fontSize: 10, color: "#999", marginTop: 2 }}>{m.role} · {m.shares} share{m.shares > 1 ? "s" : ""} · {m.phone}</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button className="btn" onClick={() => onEdit(m)} style={{ flex: 1, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 8, padding: "8px 0", fontSize: 11, fontWeight: 600 }}>
-              ✎ Edit Details
-            </button>
-            <button className="btn" onClick={() => onToggle(m.id, !!m.active)} style={{ flex: 1, background: m.active ? "#FFF3E0" : "#E8F5E9", color: m.active ? "#E65100" : "#2E7D32", border: "none", borderRadius: 8, padding: "8px 0", fontSize: 11, fontWeight: 600 }}>
-              {m.active ? "Deactivate" : "Activate"}
-            </button>
-          </div>
+            );
+          })}
         </div>
-      ))}</div>}
+      )}
     </div>
   );
 }
@@ -2678,46 +2765,107 @@ function SettingsPinBoxes({ value, onChange, hasError }) {
 
 function SettingsPage({ role, currentUser, onLogout, memberCount }) {
   const [showPinModal, setShowPinModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("profile");
+
+  const tabs = [
+    { id: "profile", label: "Profile" },
+    { id: "chama",   label: "Chama" },
+    { id: "system",  label: "System" },
+  ];
 
   return (
     <div style={{ padding: 20 }} className="fade-up">
-      <div style={{ marginBottom: 22 }}>
+      <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Settings</div>
-        <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Chama configuration</div>
+        <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>Manage your account and chama</div>
       </div>
-      <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Chama Details</div>
-        {[["Name","Kaabazim Self Help Group"],["Meeting Day","Monthly"],["Members", String(memberCount ?? "—")],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
-          <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #F5F4F0" }}>
-            <div style={{ fontSize: 12, color: "#999" }}>{k}</div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: "#1A1A1A" }}>{v}</div>
-          </div>
+
+      {/* Tab nav */}
+      <div style={{ display: "flex", background: T.sf2, borderRadius: 10, padding: 3, marginBottom: 20, alignSelf: "flex-start", width: "fit-content", border: `1px solid ${T.border}` }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding: "7px 18px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: activeTab === t.id ? T.surface : "transparent", color: activeTab === t.id ? T.fg : T.fg2, boxShadow: activeTab === t.id ? "0 1px 4px rgba(0,0,0,0.08)" : "none" }}>
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {/* Profile card */}
-      <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Profile</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-          <div style={{ width: 50, height: 50, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 18 }}>{currentUser?.name?.charAt(0) ?? "?"}</div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A1A" }}>{currentUser?.name ?? "Loading…"}</div>
-            <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{role} · {currentUser?.phone}</div>
+      {activeTab === "profile" && (
+        <div style={{ maxWidth: 480 }}>
+          {/* Avatar + name */}
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+              <div style={{ width: 60, height: 60, borderRadius: "50%", background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 22, flexShrink: 0 }}>
+                {currentUser?.name?.charAt(0) ?? "?"}
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: T.fg }}>{currentUser?.name ?? "Loading…"}</div>
+                <div style={{ fontSize: 12, color: T.fg3, marginTop: 3 }}>{role} · {currentUser?.phone}</div>
+              </div>
+            </div>
+            <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.fg2, marginBottom: 10 }}>Account details</div>
+              {[["Phone", currentUser?.phone ?? "—"], ["Role", role], ["Shares", String(currentUser?.shares ?? "—")]].map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 12, color: T.fg3 }}>{k}</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button className="btn" onClick={() => setShowPinModal(true)} style={{ background: T.sf2, color: T.fg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "13px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              🔑 Change PIN
+            </button>
+            <button className="btn" onClick={onLogout} style={{ background: T.fg, color: "#fff", border: "none", borderRadius: 12, padding: "13px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              Sign Out
+            </button>
           </div>
         </div>
-        <button className="btn" onClick={() => setShowPinModal(true)}
-          style={{ width: "100%", background: "#F7F6F2", color: "#1A1A1A", border: "1.5px solid #ECEAE4", borderRadius: 12, padding: "12px", fontSize: 13, fontWeight: 600, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          🔑 Change PIN
-        </button>
-        <button className="btn" onClick={onLogout} style={{ width: "100%", background: "#1C1C1E", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "13px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          Sign Out
-        </button>
-      </div>
+      )}
 
-      <div style={{ background: "#F0EEE8", borderRadius: 14, padding: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "#A07850", marginBottom: 4 }}>API Connected</div>
-        <div style={{ fontSize: 12, color: "#999" }}>Backend running on Railway</div>
-      </div>
+      {activeTab === "chama" && (
+        <div style={{ maxWidth: 480 }}>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.fg, marginBottom: 16 }}>Kaabazim Self Help Group</div>
+            {[
+              ["Name",         "Kaabazim Self Help Group"],
+              ["Meeting Day",  "Last Thursday of Month"],
+              ["Active Members", String(memberCount ?? "—")],
+              ["Share Value",  "KES 5,000 / month"],
+              ["Late Fine",    "10% of contribution"],
+              ["Absence Fine", "KES 500"],
+              ["Lateness Fine","KES 200"],
+            ].map(([k, v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 12, color: T.fg3 }}>{k}</div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "system" && (
+        <div style={{ maxWidth: 480 }}>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.fg, marginBottom: 16 }}>System Info</div>
+            {[
+              ["Backend", "Railway (Node.js + SQLite)"],
+              ["Frontend", "Vercel (React + Vite)"],
+              ["Version", "2.0"],
+            ].map(([k, v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 12, color: T.fg3 }}>{k}</div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: T.grnL, border: `1px solid #86efac`, borderRadius: 12, padding: 14, marginTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.green, marginBottom: 2 }}>API Connected</div>
+            <div style={{ fontSize: 11, color: T.fg3 }}>Backend running on Railway · chamaflow-api-production.up.railway.app</div>
+          </div>
+        </div>
+      )}
 
       {showPinModal && <SettingsPinModal onClose={() => setShowPinModal(false)} />}
     </div>
