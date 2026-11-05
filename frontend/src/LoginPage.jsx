@@ -51,9 +51,9 @@ export default function LoginPage({ onLogin, loading, error }) {
 
       {/* Logo area */}
       <div style={{ textAlign: "center", marginBottom: 36 }}>
-        <div style={{ width: 48, height: 48, background: T.fg, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: "-0.5px" }}>CF</div>
-        <h1 style={{ fontFamily: T.serif, fontSize: 28, fontWeight: 400, color: T.fg, letterSpacing: "-0.02em", marginBottom: 4 }}>ChamaFlow</h1>
-        <p style={{ fontSize: 13, color: T.fg2 }}>Kameme Chama · Savings &amp; Accountability</p>
+        <div style={{ width: 48, height: 48, background: T.fg, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: "-0.5px" }}>KA</div>
+        <h1 style={{ fontFamily: T.serif, fontSize: 28, fontWeight: 400, color: T.fg, letterSpacing: "-0.02em", marginBottom: 4 }}>Kaabazim</h1>
+        <p style={{ fontSize: 13, color: T.fg2 }}>Self Help Group · Savings &amp; Accountability</p>
       </div>
 
       {/* Card */}
@@ -147,7 +147,7 @@ export default function LoginPage({ onLogin, loading, error }) {
         )}
       </div>
 
-      <div style={{ marginTop: 24, fontSize: 11, color: T.fg3 }}>ChamaFlow · Kameme Chama</div>
+      <div style={{ marginTop: 24, fontSize: 11, color: T.fg3 }}>Kaabazim Self Help Group</div>
     </div>
   );
 }

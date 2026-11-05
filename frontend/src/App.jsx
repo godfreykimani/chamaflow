@@ -141,8 +141,8 @@ export default function Root() {
 function LoadingScreen() {
   return (
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:T.sans }}>
-      <div style={{ width:40, height:40, background:T.fg, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:13, marginBottom:20 }}>CF</div>
-      <div style={{ fontSize:24, fontFamily:T.serif, fontWeight:400, color:T.fg, letterSpacing:"-0.02em", marginBottom:20 }}>ChamaFlow</div>
+      <div style={{ width:40, height:40, background:T.fg, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:13, marginBottom:20 }}>KA</div>
+      <div style={{ fontSize:24, fontFamily:T.serif, fontWeight:400, color:T.fg, letterSpacing:"-0.02em", marginBottom:20 }}>Kaabazim</div>
       <div style={{ width:20, height:20, border:`2px solid ${T.border}`, borderTopColor:T.accent, borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
@@ -518,10 +518,10 @@ function ChamaFlow({ onLogout }) {
           <div style={{ width: 224, minWidth: 224, background: T.surface, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "24px 0", position: "sticky", top: 0, height: "100vh", overflowY: "auto", flexShrink: 0 }}>
             {/* Logo */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 18px 20px", borderBottom: `1px solid ${T.border}`, marginBottom: 6 }}>
-              <div style={{ width: 32, height: 32, background: T.fg, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 11, flexShrink: 0 }}>CF</div>
+              <div style={{ width: 32, height: 32, background: T.fg, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 11, flexShrink: 0 }}>KA</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>ChamaFlow</div>
-                <div style={{ fontSize: 11, color: T.fg3 }}>Kameme Chama</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Kaabazim</div>
+                <div style={{ fontSize: 11, color: T.fg3 }}>Self Help Group</div>
               </div>
             </div>
 
@@ -585,9 +585,9 @@ function ChamaFlow({ onLogout }) {
           {viewMode === "mobile" && (
             <div style={{ background: T.surface, padding: "12px 20px 10px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <div style={{ width: 26, height: 26, background: T.fg, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 9 }}>CF</div>
+                <div style={{ width: 26, height: 26, background: T.fg, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 9 }}>KA</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>ChamaFlow</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Kaabazim</div>
                   <div style={{ fontSize: 10, color: T.fg3 }}>{role}</div>
                 </div>
               </div>
@@ -1813,7 +1813,7 @@ function AnnualReportPage({ report, loading, year, setYear }) {
   const handlePrint = () => {
     const el = document.getElementById("annual-report-content");
     const win = window.open("", "_blank");
-    win.document.write(`<!DOCTYPE html><html><head><title>Kabazim Reloded — ${year} Annual Report</title>
+    win.document.write(`<!DOCTYPE html><html><head><title>Kaabazim Self Help Group — ${year} Annual Report</title>
     <style>
       body { font-family: system-ui, sans-serif; color: #1A1A1A; padding: 32px; max-width: 900px; margin: 0 auto; }
       h1 { font-size: 24px; margin-bottom: 4px; }
@@ -1840,7 +1840,7 @@ function AnnualReportPage({ report, loading, year, setYear }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Annual Report</div>
-          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Kameme Chama · {year} Summary</div>
+          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Kaabazim Self Help Group · {year} Summary</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ display: "flex", background: "#ECEAE4", borderRadius: 10, padding: 3 }}>
@@ -1865,7 +1865,7 @@ function AnnualReportPage({ report, loading, year, setYear }) {
         <div id="annual-report-content">
           {/* Hidden print header */}
           <div className="print-only" style={{ display: "none" }}>
-            <h1>Kabazim Reloded — {year} Annual Report</h1>
+            <h1>Kaabazim Self Help Group — {year} Annual Report</h1>
             <div className="sub">Generated {new Date().toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" })}</div>
           </div>
 
@@ -2687,7 +2687,7 @@ function SettingsPage({ role, currentUser, onLogout, memberCount }) {
       </div>
       <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Chama Details</div>
-        {[["Name","Kameme Chama"],["Meeting Day","Monthly"],["Members", String(memberCount ?? "—")],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
+        {[["Name","Kaabazim Self Help Group"],["Meeting Day","Monthly"],["Members", String(memberCount ?? "—")],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #F5F4F0" }}>
             <div style={{ fontSize: 12, color: "#999" }}>{k}</div>
             <div style={{ fontSize: 12, fontWeight: 500, color: "#1A1A1A" }}>{v}</div>
