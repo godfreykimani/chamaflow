@@ -15,7 +15,7 @@ const T = {
   sans:    "'Inter', system-ui, sans-serif",
 };
 
-export default function LoginPage({ onLogin, loading, error }) {
+export default function LoginPage({ onLogin, loading, error, wakeStatus }) {
   const [phone,     setPhone]     = useState("");
   const [pin,       setPin]       = useState("");
   const [step,      setStep]      = useState("phone");
@@ -86,7 +86,16 @@ export default function LoginPage({ onLogin, loading, error }) {
               Continue →
             </button>
 
-            <div style={{ marginTop: 16, padding: 14, background: T.accL, borderRadius: 9, border: `1px solid #bfdbfe` }}>
+            {wakeStatus === "waking" && (
+              <div style={{ marginTop: 12, padding: 12, background: "#fffbeb", borderRadius: 9, border: `1px solid #fcd34d`, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 14, height: 14, border: "2px solid #fcd34d", borderTopColor: T.amber, borderRadius: "50%", animation: "spin .7s linear infinite", flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.amber }}>Server is starting up…</div>
+                  <div style={{ fontSize: 11, color: T.fg2, marginTop: 1 }}>This takes ~10s after inactivity. Login will auto-retry.</div>
+                </div>
+              </div>
+            )}
+            <div style={{ marginTop: 12, padding: 14, background: T.accL, borderRadius: 9, border: `1px solid #bfdbfe` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: T.accent, marginBottom: 2 }}>First time?</div>
               <div style={{ fontSize: 11, color: T.fg2 }}>Default PIN is 1234. You'll be asked to set a new one after first login.</div>
             </div>
@@ -139,7 +148,7 @@ export default function LoginPage({ onLogin, loading, error }) {
               onClick={handleSubmit} disabled={!canLogin || loading}
               style={{ width: "100%", background: canLogin && !loading ? T.accent : T.border, color: canLogin && !loading ? "#fff" : T.fg3, border: "none", borderRadius: 9, padding: "11px", fontSize: 13, fontWeight: 600, transition: "all .2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
               {loading
-                ? <><div style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .7s linear infinite" }}/> Signing in…</>
+                ? <><div style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .7s linear infinite" }}/> {wakeStatus === "waking" ? "Waking server…" : "Signing in…"}</>
                 : "Sign in →"
               }
             </button>

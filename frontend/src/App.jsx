@@ -88,6 +88,15 @@ export default function Root() {
   const [loginError,  setLoginError]  = useState(null);
   const [pinError,    setPinError]    = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [wakeStatus,  setWakeStatus]  = useState(null); // null | "waking" | "ready"
+
+  // Ping backend on mount to warm it up before the user even tries to log in
+  useEffect(() => {
+    setWakeStatus("waking");
+    api.healthCheck()
+      .then(() => setWakeStatus("ready"))
+      .catch(() => setWakeStatus("ready")); // still let them try — may have woken up
+  }, []);
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -108,15 +117,26 @@ export default function Root() {
   const handleLogin = async (phone, pin) => {
     setLoginError(null);
     setAuthLoading(true);
-    try {
-      const { token: t, must_change_pin } = await api.login(phone, pin);
-      api.token.set(t);
-      setAuthState(must_change_pin ? "change_pin" : "app");
-    } catch (e) {
-      setLoginError(e.message);
-    } finally {
-      setAuthLoading(false);
+    // If the server is still waking up, retry up to 3 times with a short delay
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { token: t, must_change_pin } = await api.login(phone, pin);
+        api.token.set(t);
+        setAuthState(must_change_pin ? "change_pin" : "app");
+        setAuthLoading(false);
+        return;
+      } catch (e) {
+        lastErr = e;
+        // Only retry on network errors (cold-start), not auth failures
+        const isNetworkErr = e.message === "Failed to fetch" || e.message === "NetworkError" || e.message?.includes("network");
+        if (!isNetworkErr || attempt === 2) break;
+        // Brief wait before retry
+        await new Promise(r => setTimeout(r, 3000));
+      }
     }
+    setLoginError(lastErr?.message || "Login failed");
+    setAuthLoading(false);
   };
 
   const handleChangePin = async (current_pin, new_pin) => {
@@ -139,7 +159,7 @@ export default function Root() {
   };
 
   if (authState === "loading")     return <LoadingScreen />;
-  if (authState === "login")       return <LoginPage onLogin={handleLogin} loading={authLoading} error={loginError} />;
+  if (authState === "login")       return <LoginPage onLogin={handleLogin} loading={authLoading} error={loginError} wakeStatus={wakeStatus} />;
   if (authState === "change_pin")  return <ChangePinPage onSave={handleChangePin} loading={authLoading} error={pinError} />;
   return <ChamaFlow onLogout={handleLogout} />;
 }
