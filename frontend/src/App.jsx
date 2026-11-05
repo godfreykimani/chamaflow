@@ -3,6 +3,30 @@ import { createPortal } from "react-dom";
 import * as api from "./api.js";
 import LoginPage    from "./LoginPage.jsx";
 import ChangePinPage from "./ChangePinPage.jsx";
+import { Icon } from "./Icons.jsx";
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const T = {
+  bg:      "#f2efe9",
+  surface: "#ffffff",
+  sf2:     "#f8f6f2",
+  fg:      "#1a1714",
+  fg2:     "#6b6560",
+  fg3:     "#a8a39d",
+  border:  "#e5e0d9",
+  border2: "#ece8e2",
+  accent:  "#2563eb",
+  accL:    "#eff6ff",
+  accM:    "#bfdbfe",
+  green:   "#16a34a",
+  grnL:    "#f0fdf4",
+  amber:   "#d97706",
+  ambL:    "#fffbeb",
+  red:     "#dc2626",
+  redL:    "#fef2f2",
+  serif:   "'DM Serif Display', Georgia, serif",
+  sans:    "'Inter', system-ui, sans-serif",
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -24,13 +48,13 @@ const TYPE_META = {
 };
 
 const NAV_ITEMS = [
-  { id: "dashboard",     label: "Home",          icon: "⊞" },
-  { id: "contributions", label: "Contributions", icon: "◈" },
-  { id: "meetings",      label: "Meetings",      icon: "◉" },
-  { id: "record",        label: "Record Meeting", icon: "⊕", adminOnly: true },
-  { id: "members",       label: "Members",       icon: "◎" },
-  { id: "report",        label: "Annual Report", icon: "▤", adminOnly: true },
-  { id: "settings",      label: "Settings",      icon: "⊙" },
+  { id: "dashboard",     label: "Dashboard",     icon: "home",     section: "Track" },
+  { id: "contributions", label: "Contributions", icon: "coins",    section: "Track" },
+  { id: "meetings",      label: "Meetings",      icon: "calendar", section: "Track" },
+  { id: "record",        label: "Import Data",   icon: "download", section: "Admin", adminOnly: true },
+  { id: "members",       label: "Members",       icon: "users",    section: "Admin", adminOnly: true },
+  { id: "report",        label: "Reports",       icon: "chart",    section: "Admin", adminOnly: true },
+  { id: "settings",      label: "Settings",      icon: "settings", section: "Other" },
 ];
 
 // ── Shared UI primitives ──────────────────────────────────────────────────────
@@ -116,9 +140,10 @@ export default function Root() {
 
 function LoadingScreen() {
   return (
-    <div style={{ minHeight:"100vh", background:"#1C1C1E", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif" }}>
-      <div style={{ fontSize:28, fontWeight:700, color:"#F7F6F2", letterSpacing:"-1px", fontFamily:"'DM Serif Display',serif", marginBottom:24 }}>Kabazim Reloded</div>
-      <div style={{ width:24, height:24, border:"2px solid #333", borderTopColor:"#C8A97E", borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
+    <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:T.sans }}>
+      <div style={{ width:40, height:40, background:T.fg, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:13, marginBottom:20 }}>CF</div>
+      <div style={{ fontSize:24, fontFamily:T.serif, fontWeight:400, color:T.fg, letterSpacing:"-0.02em", marginBottom:20 }}>ChamaFlow</div>
+      <div style={{ width:20, height:20, border:`2px solid ${T.border}`, borderTopColor:T.accent, borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -168,19 +193,19 @@ function MobileNav({ isAdmin, page, setPage, moreOpen, setMoreOpen }) {
   return (
     <>
       <div style={{ position: "fixed", bottom: 14, left: "50%", transform: "translateX(-50%)", zIndex: 100, width: "calc(100% - 28px)", maxWidth: 480 }}>
-        <div ref={containerRef} style={{ position: "relative", display: "flex", alignItems: "center", background: "#fff", borderRadius: 999, padding: "6px 4px", boxShadow: "0 8px 32px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.07)", border: "1px solid #ECEAE4" }}>
-
-          {/* Sliding active indicator */}
-          <div style={{ position: "absolute", top: 4, bottom: 4, left: indicator.left, width: indicator.width, background: "rgba(26,26,26,0.07)", borderRadius: 999, transition: "left 0.25s cubic-bezier(.4,0,.2,1), width 0.25s cubic-bezier(.4,0,.2,1)", pointerEvents: "none" }} />
-
+        <div ref={containerRef} style={{ position: "relative", display: "flex", alignItems: "center", background: T.surface, borderRadius: 999, padding: "6px 4px", boxShadow: "0 8px 32px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.06)", border: `1px solid ${T.border}` }}>
+          <div style={{ position: "absolute", top: 4, bottom: 4, left: indicator.left, width: indicator.width, background: T.accL, borderRadius: 999, transition: "left 0.25s cubic-bezier(.4,0,.2,1),width 0.25s cubic-bezier(.4,0,.2,1)", pointerEvents: "none" }} />
           {navItems.map((item, i) => {
             const isActive = item.id === "__more__" ? (moreOpen || moreActive) : page === item.id;
             return (
               <button key={item.id} ref={el => btnRefs.current[i] = el}
                 onClick={() => { if (item.id === "__more__") { setMoreOpen(v => !v); } else { setMoreOpen(false); setPage(item.id); } }}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, border: "none", background: "transparent", padding: "7px 4px", borderRadius: 999, cursor: "pointer", color: isActive ? "#1A1A1A" : "#AAAAAA", transition: "color 0.15s", position: "relative", zIndex: 1, fontFamily: "inherit" }}>
-                <span style={{ fontSize: item.id === "__more__" ? 18 : 22, lineHeight: 1 }}>{item.icon}</span>
-                <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 400, lineHeight: 1 }}>{item.label}</span>
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, border: "none", background: "transparent", padding: "7px 4px", borderRadius: 999, cursor: "pointer", color: isActive ? T.accent : T.fg3, transition: "color 0.15s", position: "relative", zIndex: 1, fontFamily: T.sans }}>
+                {item.id === "__more__"
+                  ? <span style={{ fontSize: 18, lineHeight: 1 }}>⋯</span>
+                  : <Icon name={item.icon} size={20} color={isActive ? T.accent : T.fg3} />
+                }
+                <span style={{ fontSize: 10, fontWeight: isActive ? 600 : 400, lineHeight: 1, marginTop: 1 }}>{item.label}</span>
               </button>
             );
           })}
@@ -191,13 +216,12 @@ function MobileNav({ isAdmin, page, setPage, moreOpen, setMoreOpen }) {
       {moreOpen && (
         <>
           <div onClick={() => setMoreOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
-          <div className="slide-up" style={{ position: "fixed", bottom: 84, left: 12, right: 12, background: "#1C1C1E", borderRadius: 20, padding: "8px 8px 4px", zIndex: 99, boxShadow: "0 -8px 32px rgba(0,0,0,0.25)" }}>
-            <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, padding: "8px 12px 6px" }}>ADMIN TOOLS</div>
+          <div className="slide-up" style={{ position: "fixed", bottom: 84, left: 12, right: 12, background: T.surface, borderRadius: 16, padding: "6px 6px 4px", zIndex: 99, boxShadow: "0 -4px 24px rgba(0,0,0,.12)", border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 10, color: T.fg3, letterSpacing: ".05em", textTransform: "uppercase", padding: "8px 12px 6px", fontWeight: 500 }}>Admin</div>
             {moreItems.map(item => (
-              <button key={item.id} onClick={() => { setPage(item.id); setMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", padding: "13px 16px", border: "none", background: page === item.id ? "rgba(200,169,126,0.15)" : "transparent", borderRadius: 14, color: page === item.id ? "#C8A97E" : "#CCC", fontSize: 14, fontWeight: page === item.id ? 600 : 400, cursor: "pointer", fontFamily: "inherit", textAlign: "left", marginBottom: 2 }}>
-                <span style={{ fontSize: 20, opacity: page === item.id ? 1 : 0.7 }}>{item.icon}</span>
+              <button key={item.id} onClick={() => { setPage(item.id); setMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 14px", border: "none", background: page === item.id ? T.accL : "transparent", borderRadius: 10, color: page === item.id ? T.accent : T.fg2, fontSize: 13, fontWeight: page === item.id ? 600 : 400, cursor: "pointer", fontFamily: T.sans, textAlign: "left", marginBottom: 2 }}>
+                <Icon name={item.icon} size={18} color={page === item.id ? T.accent : T.fg2} />
                 {item.label}
-                {page === item.id && <div style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "#C8A97E" }} />}
               </button>
             ))}
           </div>
@@ -458,8 +482,12 @@ function ChamaFlow({ onLogout }) {
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+  // Group nav items by section for desktop sidebar
+  const navSections = ["Track","Admin","Other"];
+  const visibleNav  = NAV_ITEMS.filter(n => isAdmin || !n.adminOnly);
+
   return (
-    <div style={{ background: "#EDEBE6", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ background: T.bg, minHeight: "100vh", fontFamily: T.sans }}>
       <style>{`
         @keyframes fadeUp    { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         @keyframes slideUp   { from{transform:translateY(100%)} to{transform:translateY(0)} }
@@ -472,88 +500,100 @@ function ChamaFlow({ onLogout }) {
         .slide-up   { animation: slideUp 0.3s cubic-bezier(.4,0,.2,1) forwards; }
         .slide-right{ animation: slideRight 0.28s cubic-bezier(.4,0,.2,1) forwards; }
         .toast-in   { animation: toastIn 0.3s ease forwards; }
-        .nav-btn:hover { background: rgba(0,0,0,0.04); }
-        .card:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(0,0,0,0.1)!important; transition:all 0.2s; }
-        .btn:hover  { filter:brightness(1.06); transform:translateY(-1px); }
+        .nav-btn:hover { background: ${T.sf2} !important; color: ${T.fg} !important; }
+        .card:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(0,0,0,.08)!important; transition:all 0.2s; }
+        .btn:hover  { filter:brightness(1.05); transform:translateY(-1px); }
         .btn:active { transform:scale(0.97); }
         * { box-sizing:border-box; margin:0; padding:0; }
-        ::-webkit-scrollbar { width:0; }
+        ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:${T.border}; border-radius:4px; }
         input,select,textarea { font-family:inherit; }
         button { cursor:pointer; font-family:inherit; }
       `}</style>
 
-      {/* ── Top bar (desktop only) ── */}
-      {viewMode === "desktop" && (
-        <div style={{ background: "#1A1A1A", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ color: "#444", fontSize: 11, letterSpacing: 1 }}>KABAZIM RELODED</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: apiOnline === null ? "#666" : apiOnline ? "#4CAF50" : "#EF5350" }} />
-              <span style={{ fontSize: 10, color: apiOnline ? "#4CAF50" : "#EF5350" }}>
-                {apiOnline === null ? "Connecting…" : apiOnline ? "Connected" : "API offline"}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {currentUser && (
-              <span style={{ fontSize: 11, color: "#666" }}>{currentUser.name} · <span style={{ color: "#C8A97E" }}>{role}</span></span>
-            )}
-            <button onClick={onLogout} style={{ background: "#2A2A2A", border: "none", color: "#999", borderRadius: 8, padding: "5px 12px", fontSize: 11, cursor: "pointer" }}>Sign out</button>
-          </div>
-        </div>
-      )}
-
       {/* ── App shell ── */}
-      <div style={{ display: "flex", width: "100%", minHeight: viewMode === "desktop" ? "calc(100vh - 46px)" : "100vh", background: "#F7F6F2" }}>
+      <div style={{ display: "flex", width: "100%", minHeight: "100vh" }}>
 
         {/* Desktop sidebar */}
         {viewMode === "desktop" && (
-          <div style={{ width: 240, minWidth: 240, background: "#1C1C1E", display: "flex", flexDirection: "column", padding: "32px 0", position: "sticky", top: 0, height: "calc(100vh - 46px)", overflowY: "auto" }}>
-            <div style={{ padding: "0 24px 28px" }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>Kabazim Reloded</div>
-              <div style={{ fontSize: 10, color: "#555", marginTop: 2, letterSpacing: 1 }}>SAVINGS PLATFORM</div>
-            </div>
-            <div style={{ padding: "0 12px", flex: 1 }}>
-              {NAV_ITEMS.filter(n => isAdmin || !n.adminOnly).map(item => (
-                <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
-                  display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 14px",
-                  borderRadius: 10, border: "none", marginBottom: 2, textAlign: "left", transition: "all 0.15s",
-                  background: page === item.id ? "rgba(200,169,126,0.15)" : "transparent",
-                  color: page === item.id ? "#F0EDE6" : "#666",
-                  fontWeight: page === item.id ? 600 : 400, fontSize: 13, cursor: "pointer",
-                }}>
-                  <span style={{ fontSize: 16, opacity: page === item.id ? 1 : 0.6 }}>{item.icon}</span>
-                  {item.label}
-                  {page === item.id && <div style={{ marginLeft: "auto", width: 4, height: 4, borderRadius: "50%", background: "#C8A97E" }} />}
-                </button>
-              ))}
-            </div>
-            {currentUser && (
-              <div style={{ padding: "20px 16px 0" }}>
-                <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 14 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                    {currentUser.name?.charAt(0)}
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#F0EDE6" }}>{currentUser.name}</div>
-                  <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>{role}</div>
-                </div>
+          <div style={{ width: 224, minWidth: 224, background: T.surface, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "24px 0", position: "sticky", top: 0, height: "100vh", overflowY: "auto", flexShrink: 0 }}>
+            {/* Logo */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 18px 20px", borderBottom: `1px solid ${T.border}`, marginBottom: 6 }}>
+              <div style={{ width: 32, height: 32, background: T.fg, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 11, flexShrink: 0 }}>CF</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>ChamaFlow</div>
+                <div style={{ fontSize: 11, color: T.fg3 }}>Kameme Chama</div>
               </div>
-            )}
+            </div>
+
+            {/* Nav sections */}
+            <div style={{ padding: "0 10px", flex: 1 }}>
+              {navSections.map(sec => {
+                const items = visibleNav.filter(n => n.section === sec);
+                if (items.length === 0) return null;
+                return (
+                  <div key={sec} style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: T.fg3, letterSpacing: ".05em", textTransform: "uppercase", padding: "0 8px", marginBottom: 3 }}>{sec}</div>
+                    {items.map(item => {
+                      const active = page === item.id;
+                      return (
+                        <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
+                          display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 10px",
+                          borderRadius: 8, border: "none", textAlign: "left", transition: "all 0.12s",
+                          background: active ? T.sf2 : "transparent",
+                          color: active ? T.fg : T.fg2,
+                          fontWeight: active ? 500 : 400, fontSize: 13, cursor: "pointer", marginBottom: 1,
+                        }}>
+                          <Icon name={item.icon} size={17} color={active ? T.accent : T.fg3} />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* API status + user footer */}
+            <div style={{ padding: "16px 10px 0", borderTop: `1px solid ${T.border}`, marginTop: "auto" }}>
+              {apiOnline !== null && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 8px", marginBottom: 12 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: apiOnline ? T.green : T.red, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: apiOnline ? T.green : T.red }}>{apiOnline ? "Connected" : "API offline"}</span>
+                  <button onClick={onLogout} style={{ marginLeft: "auto", background: "none", border: "none", color: T.fg3, fontSize: 11, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="logout" size={13} color={T.fg3} />
+                  </button>
+                </div>
+              )}
+              {currentUser && (
+                <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg,#2563eb,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 11, flexShrink: 0 }}>
+                    {currentUser.name?.slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{ overflow: "hidden" }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: T.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser.name}</div>
+                    <div style={{ fontSize: 11, color: T.fg3 }}>{role}</div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* Main area */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           {/* Mobile header */}
           {viewMode === "mobile" && (
-            <div style={{ background: "#F7F6F2", padding: "14px 20px 10px", borderBottom: "1px solid #ECEAE4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: "#1A1A1A" }}>Kabazim Reloded</div>
-                <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5 }}>{role.toUpperCase()}</div>
+            <div style={{ background: T.surface, padding: "12px 20px 10px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <div style={{ width: 26, height: 26, background: T.fg, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 9 }}>CF</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>ChamaFlow</div>
+                  <div style={{ fontSize: 10, color: T.fg3 }}>{role}</div>
+                </div>
               </div>
               {currentUser && (
-                <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>
-                  {currentUser.name?.charAt(0)}
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,#2563eb,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 12 }}>
+                  {currentUser.name?.slice(0,2).toUpperCase()}
                 </div>
               )}
             </div>
@@ -623,21 +663,21 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
   const pct             = Math.min((monthlyPaid / monthlyExpected) * 100, 100);
 
   const heroCard = (
-    <div style={{ background: "#1C1C1E", borderRadius: 20, padding: 24, marginBottom: 14, position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(200,169,126,0.1)" }} />
+    <div style={{ background: `linear-gradient(135deg,${T.accent},#1d4ed8)`, borderRadius: 20, padding: 24, marginBottom: 14, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
       <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh balance"
-        style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#C8A97E", fontSize: 20, transition: "background 0.15s", zIndex: 1 }}>
+        style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#fff", fontSize: 18, transition: "background 0.15s", zIndex: 1 }}>
         <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
       </button>
-      <div style={{ fontSize: 11, color: "#666", letterSpacing: 1, marginBottom: 8 }}>TOTAL SAVINGS</div>
-      <div style={{ fontSize: 34, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-1px", fontFamily: "'DM Serif Display', serif" }}>{fmt(totalSavings)}</div>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", letterSpacing: 1, marginBottom: 8 }}>TOTAL SAVINGS</div>
+      <div style={{ fontSize: 34, fontWeight: 700, color: "#fff", letterSpacing: "-1px", fontFamily: T.serif }}>{fmt(totalSavings)}</div>
       <div style={{ marginTop: 16, display: "flex", gap: 16 }}>
         {[["SHARES", member?.shares ?? 1], ["MONTHLY", fmt(monthlyExpected)], ["ROLE", role]].map(([k, v], i) => (
           <div key={k} style={{ display: "flex", gap: 16, alignItems: "center" }}>
-            {i > 0 && <div style={{ width: 1, height: 28, background: "#333" }} />}
+            {i > 0 && <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.2)" }} />}
             <div>
-              <div style={{ fontSize: 9, color: "#555", letterSpacing: 0.5 }}>{k}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#C8A97E", marginTop: 2 }}>{v}</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", letterSpacing: 0.5 }}>{k}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginTop: 2 }}>{v}</div>
             </div>
           </div>
         ))}
@@ -697,9 +737,9 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
   return (
     <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
       <div style={{ marginBottom: 22 }}>
-        <div style={{ fontSize: 13, color: "#999" }}>Good morning,</div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px", fontFamily: "'DM Serif Display', serif" }}>
-          {member?.name?.split(" ")[0] ?? "…"} 👋
+        <div style={{ fontSize: 13, color: T.fg3 }}>Good morning,</div>
+        <div style={{ fontSize: 26, fontWeight: 400, color: T.fg, letterSpacing: "-0.5px", fontFamily: T.serif }}>
+          {member?.name?.split(" ")[0] ?? "…"}
         </div>
       </div>
 
@@ -755,24 +795,24 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
   return (
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Contributions</div>
-        <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
+        <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Contributions</div>
+        <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>
           {isAdmin ? (filterMember !== "All" ? `Viewing: ${selectedMemberName}` : "All members") : "Your payment history"}
         </div>
       </div>
 
       {/* Summary hero */}
-      <div style={{ background: "linear-gradient(135deg,#1C1C1E,#2A2A2E)", borderRadius: 20, padding: 20, marginBottom: 14, position: "relative" }}>
+      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20, marginBottom: 14, position: "relative" }}>
         <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh"
-          style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: "#C8A97E", fontSize: 20, transition: "background 0.15s", zIndex: 1 }}>
+          style={{ position: "absolute", top: 14, right: 14, background: T.sf2, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: T.fg2, fontSize: 18, transition: "background 0.15s", zIndex: 1 }}>
           <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
         </button>
-        <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 10, paddingRight: 44 }}>{filterYear} TOTAL</div>
-        <div style={{ fontSize: 30, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-1px", marginBottom: 14 }}>{fmt(grandTotal)}</div>
+        <div style={{ fontSize: 10, color: T.fg3, letterSpacing: 1, marginBottom: 10, paddingRight: 44 }}>{filterYear} TOTAL</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: T.fg, letterSpacing: "-1px", fontFamily: T.serif, marginBottom: 14 }}>{fmt(grandTotal)}</div>
         <div style={{ display: "flex", gap: 0 }}>
-          {[["SHARES", `${totalShares} shares`, "#90CAF9"],["FINES", totalFines > 0 ? fmt(totalFines) : "—", "#FFAB91"],["LATENESS", totalLateness > 0 ? fmt(totalLateness) : "—", "#FFE082"]].map(([k,v,c],i) => (
-            <div key={k} style={{ flex: 1, paddingLeft: i > 0 ? 12 : 0, paddingRight: i < 2 ? 12 : 0, borderRight: i < 2 ? "1px solid #333" : "none" }}>
-              <div style={{ fontSize: 9, color: "#555", letterSpacing: 0.5 }}>{k}</div>
+          {[["SHARES", `${totalShares} shares`, T.accent],["FINES", totalFines > 0 ? fmt(totalFines) : "—", T.red],["LATENESS", totalLateness > 0 ? fmt(totalLateness) : "—", T.amber]].map(([k,v,c],i) => (
+            <div key={k} style={{ flex: 1, paddingLeft: i > 0 ? 12 : 0, paddingRight: i < 2 ? 12 : 0, borderRight: i < 2 ? `1px solid ${T.border}` : "none" }}>
+              <div style={{ fontSize: 9, color: T.fg3, letterSpacing: 0.5 }}>{k}</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 3 }}>{v}</div>
             </div>
           ))}
@@ -1018,17 +1058,17 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Meetings</div>
-          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{meetings.length} meetings</div>
+          <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Meetings</div>
+          <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>{meetings.length} meetings</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button className="btn" onClick={() => setCalView(v => !v)}
-            style={{ background: calView ? "#1A1A1A" : "#F0EEE8", color: calView ? "#F7F6F2" : "#555", border: "none", borderRadius: 12, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>
+            style={{ background: calView ? T.fg : T.sf2, color: calView ? "#fff" : T.fg2, border: `1px solid ${T.border}`, borderRadius: 10, padding: "7px 12px", fontSize: 12, fontWeight: 500 }}>
             {calView ? "☰ List" : "📅 Calendar"}
           </button>
           {isAdmin && (
             <button className="btn" onClick={() => { setShowRec(v => !v); setRecording(false); setTranscribing(false); setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
-              style={{ background: showRec ? "#1A1A1A" : "linear-gradient(135deg,#C8A97E,#A07850)", color: "#fff", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>
+              style={{ background: showRec ? T.fg : T.accent, color: "#fff", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 600 }}>
               {showRec ? "✕ Close" : "🎙 Record Meeting"}
             </button>
           )}
@@ -1039,77 +1079,77 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
       {showRec && isAdmin && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={e => { if (e.target === e.currentTarget && !recording && !transcribing) { setShowRec(false); setRecMonth(""); setTranscribeDone(false); setTranscribedMtg(null); } }}>
-          <div style={{ background: "#1C1C1E", borderRadius: 24, padding: 32, width: "100%", maxWidth: 560, fontFamily: "'DM Sans', sans-serif" }} className="fade-up">
+          <div style={{ background: T.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 540, fontFamily: T.sans, border: `1px solid ${T.border}`, boxShadow: "0 24px 48px rgba(0,0,0,.2)" }} className="fade-up">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: "#F7F6F2", letterSpacing: "-0.5px" }}>🎙 Record Meeting</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 18, fontWeight: 600, color: T.fg }}>Record Meeting</div>
               {!recording && !transcribing && (
                 <button onClick={() => { setShowRec(false); setRecMonth(""); setTranscribeDone(false); setTranscribedMtg(null); }}
-                  style={{ background: "#2A2A2A", border: "none", borderRadius: 8, width: 32, height: 32, color: "#888", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                  style={{ background: T.sf2, border: "none", borderRadius: 8, width: 30, height: 30, color: T.fg2, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
               )}
             </div>
 
             {transcribeDone ? (
               /* ── Success state ── */
-              <div style={{ textAlign: "center", padding: "20px 0 8px" }}>
-                <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#F7F6F2", marginBottom: 8 }}>Transcription complete!</div>
-                <div style={{ fontSize: 14, color: "#666", marginBottom: 32, lineHeight: 1.6 }}>
+              <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: T.fg, marginBottom: 8 }}>Transcription complete!</div>
+                <div style={{ fontSize: 13, color: T.fg2, marginBottom: 28, lineHeight: 1.6 }}>
                   AI meeting minutes are being generated by Claude.<br />They'll be ready in a few seconds.
                 </div>
                 <button className="btn" onClick={() => { setTranscriptMeeting(transcribedMtg); setShowRec(false); setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
-                  style={{ width: "100%", background: "#C8A97E", color: "#1A1A1A", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit", marginBottom: 12 }}>
-                  📄 View Minutes
+                  style={{ width: "100%", background: T.accent, color: "#fff", border: "none", borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 600, fontFamily: "inherit", marginBottom: 10 }}>
+                  View Minutes
                 </button>
                 <button onClick={() => { setTranscribeDone(false); setTranscribedMtg(null); setRecMonth(""); }}
-                  style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ background: "none", border: "none", color: T.fg3, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
                   Record another meeting
                 </button>
               </div>
             ) : (
               <>
                 {/* Month selector */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, color: "#666", letterSpacing: 0.5, marginBottom: 8 }}>SELECT MEETING MONTH</div>
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 10, color: T.fg3, letterSpacing: ".05em", marginBottom: 6, fontWeight: 500 }}>SELECT MEETING MONTH</div>
                   <select value={recMonth} onChange={e => setRecMonth(e.target.value)} disabled={recording || transcribing}
-                    style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1px solid #333", background: "#2A2A2A", color: "#F0EDE6", fontSize: 15, fontFamily: "inherit", outline: "none" }}>
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.sf2, color: T.fg, fontSize: 14, fontFamily: "inherit", outline: "none" }}>
                     <option value="">Choose month…</option>
                     {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                   {recMeeting && (
-                    <div style={{ fontSize: 13, color: "#4CAF50", marginTop: 8 }}>✓ {recMeeting.date} — {recMeeting.location}</div>
+                    <div style={{ fontSize: 12, color: T.green, marginTop: 6 }}>✓ {recMeeting.date} — {recMeeting.location}</div>
                   )}
                   {recMonth && !recMeeting && (
-                    <div style={{ fontSize: 13, color: "#C8A97E", marginTop: 8 }}>◎ No meeting scheduled yet — a placeholder will be created automatically</div>
+                    <div style={{ fontSize: 12, color: T.amber, marginTop: 6 }}>◎ No meeting scheduled yet — a placeholder will be created automatically</div>
                   )}
                 </div>
 
                 {/* Waveform */}
-                <div style={{ height: 72, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 20, overflow: "hidden", background: "#111", borderRadius: 14 }}>
+                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginBottom: 18, overflow: "hidden", background: T.sf2, borderRadius: 12, border: `1px solid ${T.border}` }}>
                   {recording
-                    ? waveform.map((h, i) => <div key={i} style={{ width: 3, height: h, background: "#C8A97E", borderRadius: 2, transition: "height 0.05s" }} />)
-                    : Array.from({ length: 40 }).map((_, i) => <div key={i} style={{ width: 3, height: 8, background: "#2A2A2A", borderRadius: 2 }} />)
+                    ? waveform.map((h, i) => <div key={i} style={{ width: 3, height: h, background: T.accent, borderRadius: 2, transition: "height 0.05s" }} />)
+                    : Array.from({ length: 40 }).map((_, i) => <div key={i} style={{ width: 3, height: 6, background: T.border, borderRadius: 2 }} />)
                   }
                 </div>
 
                 {/* Controls */}
                 {transcribing ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", padding: 16 }}>
-                    <div style={{ width: 18, height: 18, border: "2px solid #333", borderTopColor: "#C8A97E", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                    <span style={{ fontSize: 15, color: "#888" }}>Transcribing audio…</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", padding: 14 }}>
+                    <div style={{ width: 16, height: 16, border: `2px solid ${T.border}`, borderTopColor: T.accent, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    <span style={{ fontSize: 14, color: T.fg2 }}>Transcribing audio…</span>
                   </div>
                 ) : recording ? (
                   <button className="btn" onClick={handleStopRecording}
-                    style={{ width: "100%", background: "#EF5350", color: "#fff", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit", animation: "pulse 1.5s infinite" }}>
+                    style={{ width: "100%", background: T.red, color: "#fff", border: "none", borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 600, fontFamily: "inherit", animation: "pulse 1.5s infinite" }}>
                     ⏹ Stop &amp; Transcribe
                   </button>
                 ) : (
                   <button className="btn" onClick={handleStartRecording} disabled={!recMonth}
-                    style={{ width: "100%", background: recMonth ? "#C8A97E" : "#2A2A2A", color: recMonth ? "#1A1A1A" : "#555", border: "none", borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, fontFamily: "inherit" }}>
+                    style={{ width: "100%", background: recMonth ? T.accent : T.sf2, color: recMonth ? "#fff" : T.fg3, border: recMonth ? "none" : `1px solid ${T.border}`, borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 600, fontFamily: "inherit" }}>
                     ⏺ Start Recording
                   </button>
                 )}
-                <div style={{ fontSize: 12, color: "#555", textAlign: "center", marginTop: 14 }}>
+                <div style={{ fontSize: 11, color: T.fg3, textAlign: "center", marginTop: 12 }}>
                   Audio transcribed by Groq Whisper · Minutes generated by Claude AI
                 </div>
               </>
@@ -1799,8 +1839,8 @@ function AnnualReportPage({ report, loading, year, setYear }) {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Annual Report</div>
-          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Kabazim Reloded · {year} Summary</div>
+          <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Annual Report</div>
+          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Kameme Chama · {year} Summary</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ display: "flex", background: "#ECEAE4", borderRadius: 10, padding: 3 }}>
@@ -1961,7 +2001,7 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
   return (
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Record Contribution</div>
+        <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Import Data</div>
         <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{CURRENT_MONTH}</div>
       </div>
 
@@ -2491,7 +2531,7 @@ function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode, show
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Members</div>
+          <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Members</div>
           <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{active} active</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -2642,12 +2682,12 @@ function SettingsPage({ role, currentUser, onLogout, memberCount }) {
   return (
     <div style={{ padding: 20 }} className="fade-up">
       <div style={{ marginBottom: 22 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>Settings</div>
+        <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Settings</div>
         <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Chama configuration</div>
       </div>
       <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", marginBottom: 14 }}>Chama Details</div>
-        {[["Name","Kabazim Reloded"],["Meeting Day","Monthly"],["Members", String(memberCount ?? "—")],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
+        {[["Name","Kameme Chama"],["Meeting Day","Monthly"],["Members", String(memberCount ?? "—")],["Share Value","KES 5,000 / month"]].map(([k,v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #F5F4F0" }}>
             <div style={{ fontSize: 12, color: "#999" }}>{k}</div>
             <div style={{ fontSize: 12, fontWeight: 500, color: "#1A1A1A" }}>{v}</div>
@@ -2899,7 +2939,7 @@ function PDFModal({ meeting, members, onClose }) {
         <div style={{ padding: "28px 28px 40px", fontFamily: "Georgia, serif" }}>
           <div style={{ textAlign: "center", marginBottom: 28, paddingBottom: 20, borderBottom: "2px solid #1A1A1A" }}>
             <div style={{ fontSize: 10, letterSpacing: 3, color: "#666", marginBottom: 6 }}>OFFICIAL MEETING MINUTES</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1A1A" }}>Kabazim Reloded</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1A1A", fontFamily: T.serif }}>Kameme Chama</div>
             <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>Registered Chama · Kenya</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
