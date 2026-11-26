@@ -476,13 +476,16 @@ function ChamaFlow({ onLogout }) {
   };
 
   const [deletingContribId, setDeletingContribId] = useState(null);
-  const handleDeleteContrib = async (id) => {
-    if (!window.confirm("Delete this record? This cannot be undone.")) return;
+  const [deleteContribTarget, setDeleteContribTarget] = useState(null); // { id, member_name, month, type, amount }
+  const handleDeleteContrib = async () => {
+    if (!deleteContribTarget) return;
+    const { id } = deleteContribTarget;
     setDeletingContribId(id);
     try {
       await api.deleteContribution(id);
       setContributions(prev => prev.filter(c => c.id !== id));
       showToast("Record deleted");
+      setDeleteContribTarget(null);
     } catch (e) {
       showToast("Failed to delete", "error");
     } finally {
@@ -602,7 +605,7 @@ function ChamaFlow({ onLogout }) {
 
           <div className={viewMode === "desktop" ? "main" : ""} style={viewMode === "mobile" ? { padding: 0 } : {}}>
             {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} showToast={showToast} />}
-            {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} onDelete={handleDeleteContrib} deletingContribId={deletingContribId} selectStyle={selectStyle} onRefresh={loadContributions} setPage={setPage} />}
+            {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} onDelete={c => setDeleteContribTarget(c)} deletingContribId={deletingContribId} selectStyle={selectStyle} onRefresh={loadContributions} setPage={setPage} />}
             {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
             {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
             {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} showToast={showToast} onRefresh={loadMembers} />}
@@ -624,6 +627,7 @@ function ChamaFlow({ onLogout }) {
       {transcriptMeeting && <TranscriptPanel meeting={transcriptMeeting} onClose={() => setTranscriptMeeting(null)} />}
       {addMemberModal    && <AddMemberModal onClose={() => setAddMemberModal(false)} onAdd={handleAddMember} members={members} />}
       {editMember      && <EditMemberModal member={editMember} onClose={() => setEditMember(null)} onSave={handleEditMember} />}
+      {deleteContribTarget && <DeleteContribModal contrib={deleteContribTarget} onClose={() => setDeleteContribTarget(null)} onConfirm={handleDeleteContrib} deleting={!!deletingContribId} />}
 
       {/* Toast */}
       {toast && (
@@ -1040,7 +1044,7 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
                           </button>
                         )}
                         <button
-                          onClick={() => onDelete(c.id)}
+                          onClick={() => onDelete(c)}
                           disabled={deletingContribId === c.id}
                           style={{ padding: "4px 8px", fontSize: 11, background: "none", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 6, cursor: "pointer", lineHeight: 1, opacity: deletingContribId === c.id ? 0.5 : 1 }}
                         >
@@ -1055,6 +1059,45 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Delete Contribution Modal ─────────────────────────────────────────────────
+
+function DeleteContribModal({ contrib, onClose, onConfirm, deleting }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div className="fade-up modal-card" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 400, padding: "28px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Delete Record</div>
+            <div style={{ fontSize: 11, color: "#999", marginTop: 3 }}>This action cannot be undone</div>
+          </div>
+          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        <div style={{ background: "#FFF5F5", border: "1px solid #FED7D7", borderRadius: 14, padding: "14px 16px", marginBottom: 24 }}>
+          <div style={{ fontSize: 12, color: "#999", marginBottom: 6 }}>You are about to permanently delete:</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>{contrib.member_name}</div>
+          <div style={{ fontSize: 12, color: "#555", marginTop: 4, display: "flex", gap: 12 }}>
+            <span>{contrib.month}</span>
+            <span>·</span>
+            <span>{contrib.type}</span>
+            <span>·</span>
+            <span style={{ fontWeight: 600, color: "var(--red)" }}>{fmt(contrib.amount)}</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} disabled={deleting} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid #E0DDD6", background: "#fff", fontSize: 13, fontWeight: 600, color: "#555", cursor: "pointer" }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={deleting} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: "var(--red)", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: deleting ? 0.6 : 1 }}>
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
