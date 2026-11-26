@@ -98,6 +98,12 @@ export const deleteContribution = (id) =>
 export const bulkImportContributions = (body) =>
   request("/contributions/bulk", { method: "POST", body: JSON.stringify(body) });
 
+export const autoMonthlyFines = (month) =>
+  request("/contributions/auto-fines/monthly", { method: "POST", body: JSON.stringify({ month }) });
+
+export const getUnpaidCheck = (month) =>
+  request(`/contributions/unpaid-check?month=${encodeURIComponent(month)}`);
+
 export const uploadProof = (id, file) => {
   const form = new FormData();
   form.append("proof", file);

@@ -581,6 +581,78 @@ app.post("/api/contributions/bulk", requireAdmin, (req, res) => {
   ok(res, { inserted: results.length, skipped: skipped.length, ids: results }, 201);
 });
 
+// POST /api/contributions/auto-fines/monthly
+// For each active member who has not paid a Contribution for the given month,
+// auto-create a Fine = 10% × (shares × KES 5,000). Idempotent.
+app.post("/api/contributions/auto-fines/monthly", requireAdmin, (req, res) => {
+  const { month } = req.body;
+  if (!month) return fail(res, "month required");
+
+  const NOTE_PREFIX = `auto-monthly:${month}`;
+  const members = db.prepare("SELECT id, name, shares FROM members WHERE active=1").all();
+
+  const paidIds = new Set(
+    db.prepare("SELECT DISTINCT member_id FROM contributions WHERE month=? AND type='Contribution'")
+      .all(month).map(r => r.member_id)
+  );
+
+  const generated = [];
+  const skipped   = [];
+
+  const tx = db.transaction(() => {
+    for (const member of members) {
+      if (paidIds.has(member.id)) { skipped.push(member.name); continue; }
+
+      const existing = db.prepare(
+        "SELECT id FROM contributions WHERE member_id=? AND notes=? AND type='Fine'"
+      ).get(member.id, NOTE_PREFIX);
+      if (existing) { skipped.push(member.name); continue; }
+
+      const shares = member.shares || 1;
+      const amount = Math.round(shares * 5000 * 0.10);
+
+      const r = db.prepare(
+        "INSERT INTO contributions (member_id,type,month,amount,method,status,notes,recorded_by) VALUES (?,?,?,?,'Auto','Pending',?,?)"
+      ).run(member.id, "Fine", month, amount, NOTE_PREFIX, req.user.id);
+
+      audit(req.user.id, "AUTO_MONTHLY_FINE", `contribution:${r.lastInsertRowid}`,
+        { member_id: member.id, month, shares, amount });
+
+      generated.push({ id: r.lastInsertRowid, member_id: member.id, name: member.name, shares, amount });
+    }
+  });
+  tx();
+
+  ok(res, { month, generated, skipped_count: skipped.length });
+});
+
+// GET /api/contributions/unpaid-check?month=...
+// Returns active members who have no Contribution for the month and no auto-monthly fine yet.
+app.get("/api/contributions/unpaid-check", requireAdmin, (req, res) => {
+  const { month } = req.query;
+  if (!month) return fail(res, "month required");
+
+  const NOTE_PREFIX = `auto-monthly:${month}`;
+  const members = db.prepare("SELECT id, name, shares FROM members WHERE active=1").all();
+
+  const paidIds = new Set(
+    db.prepare("SELECT DISTINCT member_id FROM contributions WHERE month=? AND type='Contribution'")
+      .all(month).map(r => r.member_id)
+  );
+  const finedIds = new Set(
+    db.prepare("SELECT DISTINCT member_id FROM contributions WHERE notes=? AND type='Fine'")
+      .all(NOTE_PREFIX).map(r => r.member_id)
+  );
+
+  const unpaid = members.filter(m => !paidIds.has(m.id)).map(m => ({
+    ...m,
+    fine_amount: Math.round((m.shares || 1) * 5000 * 0.10),
+    already_fined: finedIds.has(m.id),
+  }));
+
+  ok(res, { month, unpaid, total_fine: unpaid.filter(m => !m.already_fined).reduce((s, m) => s + m.fine_amount, 0) });
+});
+
 // ─── Bulk import endpoints ────────────────────────────────────────────────────
 
 app.post("/api/import/members", requireAdmin, async (req, res) => {

@@ -586,7 +586,7 @@ function ChamaFlow({ onLogout }) {
           )}
 
           <div className={viewMode === "desktop" ? "main" : ""} style={viewMode === "mobile" ? { padding: 0 } : {}}>
-            {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} />}
+            {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} showToast={showToast} />}
             {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} setPage={setPage} />}
             {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
             {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
@@ -625,13 +625,37 @@ function ChamaFlow({ onLogout }) {
 
 const AVATAR_CLASSES = ["a0","a1","a2","a3","a4","a5","a6","a7","a8","a9","a10","a11"];
 
-function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh, members }) {
+function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh, members, showToast }) {
   const isDesktop = viewMode === "desktop";
-  const [myBal, setMyBal] = useState(null);
+  const [myBal,     setMyBal]     = useState(null);
+  const [unpaid,    setUnpaid]    = useState(null);
+  const [fineApply, setFineApply] = useState(false);
+  const isAdmin = role === "Chairman" || role === "Secretary";
 
   useEffect(() => {
     api.getMyBalance().then(setMyBal).catch(() => {});
   }, [member?.id]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api.getUnpaidCheck(CURRENT_MONTH).then(setUnpaid).catch(() => {});
+  }, [isAdmin]);
+
+  const handleApplyFines = async () => {
+    setFineApply(true);
+    try {
+      const res = await api.autoMonthlyFines(CURRENT_MONTH);
+      onRefresh();
+      api.getUnpaidCheck(CURRENT_MONTH).then(setUnpaid).catch(() => {});
+      showToast
+        ? showToast(`${res.generated.length} fine${res.generated.length !== 1 ? "s" : ""} applied for ${CURRENT_MONTH}`, "success")
+        : alert(`${res.generated.length} fines applied`);
+    } catch (e) {
+      showToast ? showToast(e.message, "error") : alert(e.message);
+    } finally {
+      setFineApply(false);
+    }
+  };
 
   if (loading) return (
     <div style={{ padding: isDesktop ? 0 : 20 }}>
@@ -670,6 +694,38 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
 
       <div className="page-h">Dashboard</div>
       <div className="page-sub">{CURRENT_MONTH} · Kaabazim Self Help Group</div>
+
+      {/* Auto-fine alert for admins */}
+      {isAdmin && unpaid && unpaid.unpaid.filter(m => !m.already_fined).length > 0 && (
+        <div style={{ background: "#fff8e1", border: "1px solid #ffc107", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span style={{ fontSize: 20 }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "#7c5700" }}>
+                {unpaid.unpaid.filter(m => !m.already_fined).length} member{unpaid.unpaid.filter(m => !m.already_fined).length !== 1 ? "s" : ""} haven't contributed for {CURRENT_MONTH}
+              </div>
+              <div style={{ fontSize: 11, color: "#9a6900", marginTop: 2 }}>
+                10% interest fine per share · Total: KES {unpaid.total_fine.toLocaleString()} pending
+                {" · "}
+                {unpaid.unpaid.filter(m => !m.already_fined).map(m => m.name.split(" ")[0]).join(", ")}
+              </div>
+            </div>
+          </div>
+          <button
+            className="btn btn-sm"
+            onClick={handleApplyFines}
+            disabled={fineApply}
+            style={{ background: "#e65100", color: "#fff", border: "none", whiteSpace: "nowrap", flexShrink: 0 }}
+          >
+            {fineApply ? "Applying…" : "Apply Fines"}
+          </button>
+        </div>
+      )}
+      {isAdmin && unpaid && unpaid.unpaid.filter(m => !m.already_fined).length === 0 && unpaid.unpaid.length > 0 && (
+        <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 12, padding: "10px 16px", marginBottom: 16, fontSize: 12, color: "#2e7d32", display: "flex", gap: 8, alignItems: "center" }}>
+          <span>✓</span> Interest fines already applied for {CURRENT_MONTH} ({unpaid.unpaid.length} unpaid member{unpaid.unpaid.length !== 1 ? "s" : ""})
+        </div>
+      )}
 
       {/* Status banner */}
       <div className="status-banner">
