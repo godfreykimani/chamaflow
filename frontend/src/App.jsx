@@ -4,6 +4,7 @@ import * as api from "./api.js";
 import LoginPage    from "./LoginPage.jsx";
 import ChangePinPage from "./ChangePinPage.jsx";
 import { Icon } from "./Icons.jsx";
+import "./app.css";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -51,16 +52,12 @@ const NAV_ITEMS = [
   { id: "dashboard",     label: "Dashboard",     icon: "home",     section: "Track" },
   { id: "contributions", label: "Contributions", icon: "coins",    section: "Track" },
   { id: "meetings",      label: "Meetings",      icon: "calendar", section: "Track" },
+  { id: "mybalance",     label: "My Balance",    icon: "wallet",   section: "Track" },
   { id: "record",        label: "Import Data",   icon: "download", section: "Admin", adminOnly: true },
   { id: "members",       label: "Members",       icon: "users",    section: "Admin", adminOnly: true },
+  { id: "capital",       label: "Capital Sheet", icon: "bank",     section: "Admin", adminOnly: true },
   { id: "report",        label: "Reports",       icon: "chart",    section: "Admin", adminOnly: true },
   { id: "settings",      label: "Settings",      icon: "settings", section: "Other" },
-];
-
-const AVATAR_COLORS = [
-  "#2563eb","#16a34a","#dc2626","#d97706","#9333ea",
-  "#0891b2","#c2410c","#4f46e5","#be185d","#065f46",
-  "#92400e","#1e40af",
 ];
 
 // ── Shared UI primitives ──────────────────────────────────────────────────────
@@ -88,15 +85,6 @@ export default function Root() {
   const [loginError,  setLoginError]  = useState(null);
   const [pinError,    setPinError]    = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
-  const [wakeStatus,  setWakeStatus]  = useState(null); // null | "waking" | "ready"
-
-  // Ping backend on mount to warm it up before the user even tries to log in
-  useEffect(() => {
-    setWakeStatus("waking");
-    api.healthCheck()
-      .then(() => setWakeStatus("ready"))
-      .catch(() => setWakeStatus("ready")); // still let them try — may have woken up
-  }, []);
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -117,26 +105,15 @@ export default function Root() {
   const handleLogin = async (phone, pin) => {
     setLoginError(null);
     setAuthLoading(true);
-    // If the server is still waking up, retry up to 3 times with a short delay
-    let lastErr;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const { token: t, must_change_pin } = await api.login(phone, pin);
-        api.token.set(t);
-        setAuthState(must_change_pin ? "change_pin" : "app");
-        setAuthLoading(false);
-        return;
-      } catch (e) {
-        lastErr = e;
-        // Only retry on network errors (cold-start), not auth failures
-        const isNetworkErr = e.message === "Failed to fetch" || e.message === "NetworkError" || e.message?.includes("network");
-        if (!isNetworkErr || attempt === 2) break;
-        // Brief wait before retry
-        await new Promise(r => setTimeout(r, 3000));
-      }
+    try {
+      const { token: t, must_change_pin } = await api.login(phone, pin);
+      api.token.set(t);
+      setAuthState(must_change_pin ? "change_pin" : "app");
+    } catch (e) {
+      setLoginError(e.message);
+    } finally {
+      setAuthLoading(false);
     }
-    setLoginError(lastErr?.message || "Login failed");
-    setAuthLoading(false);
   };
 
   const handleChangePin = async (current_pin, new_pin) => {
@@ -159,7 +136,7 @@ export default function Root() {
   };
 
   if (authState === "loading")     return <LoadingScreen />;
-  if (authState === "login")       return <LoginPage onLogin={handleLogin} loading={authLoading} error={loginError} wakeStatus={wakeStatus} />;
+  if (authState === "login")       return <LoginPage onLogin={handleLogin} loading={authLoading} error={loginError} />;
   if (authState === "change_pin")  return <ChangePinPage onSave={handleChangePin} loading={authLoading} error={pinError} />;
   return <ChamaFlow onLogout={handleLogout} />;
 }
@@ -382,10 +359,10 @@ function ChamaFlow({ onLogout }) {
     loadMeetings();
   }, [page]);
 
-  // ── Refetch contributions for Record page summary + Dashboard ──
+  // ── Refetch contributions for Record page summary ──
   const [monthlySummary, setMonthlySummary] = useState(null);
   useEffect(() => {
-    if (page !== "record" && page !== "dashboard") return;
+    if (page !== "record") return;
     setLoad("summary", true);
     api.getMonthlySummary(getCurrentMonth())
       .then(setMonthlySummary)
@@ -512,168 +489,122 @@ function ChamaFlow({ onLogout }) {
   const navSections = ["Track","Admin","Other"];
   const visibleNav  = NAV_ITEMS.filter(n => isAdmin || !n.adminOnly);
 
+  // Compute cycle progress (% of year elapsed)
+  const cycleProgress = Math.round(((now.getMonth() + 1) / 12) * 100);
+  const activeMemberCount = members.filter(m => m.active).length;
+
   return (
-    <div style={{ background: T.bg, minHeight: "100vh", fontFamily: T.sans }}>
-      <style>{`
-        @keyframes fadeUp    { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes slideUp   { from{transform:translateY(100%)} to{transform:translateY(0)} }
-        @keyframes slideRight{ from{transform:translateX(100%)} to{transform:translateX(0)} }
-        @keyframes toastIn   { from{transform:translateX(120%)} to{transform:translateX(0)} }
-        @keyframes spin      { to{transform:rotate(360deg)} }
-        @keyframes shimmer   { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-        @keyframes pulse     { 0%,100%{opacity:1} 50%{opacity:.4} }
-        .fade-up    { animation: fadeUp 0.3s ease both; }
-        .slide-up   { animation: slideUp 0.3s cubic-bezier(.4,0,.2,1) forwards; }
-        .slide-right{ animation: slideRight 0.28s cubic-bezier(.4,0,.2,1) forwards; }
-        .toast-in   { animation: toastIn 0.3s ease forwards; }
-        .nav-btn:hover { background: ${T.sf2} !important; color: ${T.fg} !important; }
-        .card:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(0,0,0,.08)!important; transition:all 0.2s; }
-        .btn:hover  { filter:brightness(1.05); transform:translateY(-1px); }
-        .btn:active { transform:scale(0.97); }
-        * { box-sizing:border-box; margin:0; padding:0; }
-        ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:${T.border}; border-radius:4px; }
-        input,select,textarea { font-family:inherit; }
-        button { cursor:pointer; font-family:inherit; }
-      `}</style>
+    <div className="app-shell">
 
-      {/* ── App shell ── */}
-      <div style={{ display: "flex", width: "100%", minHeight: "100vh" }}>
-
-        {/* Desktop sidebar */}
-        {viewMode === "desktop" && (
-          <div style={{ width: 224, minWidth: 224, background: T.surface, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "24px 0", position: "sticky", top: 0, height: "100vh", overflowY: "auto", flexShrink: 0 }}>
-            {/* Logo */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 18px 20px", borderBottom: `1px solid ${T.border}`, marginBottom: 6 }}>
-              <div style={{ width: 32, height: 32, background: T.fg, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 11, flexShrink: 0 }}>KA</div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Kaabazim</div>
-                <div style={{ fontSize: 11, color: T.fg3 }}>Self Help Group</div>
-              </div>
+      {/* Desktop sidebar */}
+      {viewMode === "desktop" && (
+        <nav className="nav">
+          <div className="nav-logo">
+            <div className="logomark">KA</div>
+            <div>
+              <div className="brand-name">Kaabazim</div>
+              <div className="brand-sub">Self Help Group</div>
             </div>
+          </div>
 
-            {/* Nav sections */}
-            <div style={{ padding: "0 10px", flex: 1 }}>
-              {navSections.map(sec => {
-                const items = visibleNav.filter(n => n.section === sec);
-                if (items.length === 0) return null;
-                return (
-                  <div key={sec} style={{ marginTop: 12 }}>
-                    <div style={{ fontSize: 10, fontWeight: 500, color: T.fg3, letterSpacing: ".05em", textTransform: "uppercase", padding: "0 8px", marginBottom: 3 }}>{sec}</div>
-                    {items.map(item => {
-                      const active = page === item.id;
-                      return (
-                        <button key={item.id} className="nav-btn" onClick={() => setPage(item.id)} style={{
-                          display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 10px",
-                          borderRadius: 8, border: "none", textAlign: "left", transition: "all 0.12s",
-                          background: active ? T.sf2 : "transparent",
-                          color: active ? T.fg : T.fg2,
-                          fontWeight: active ? 500 : 400, fontSize: 13, cursor: "pointer", marginBottom: 1,
-                        }}>
-                          <Icon name={item.icon} size={17} color={active ? T.accent : T.fg3} />
-                          {item.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Cycle progress bar */}
-            {(() => {
-              const now2 = new Date();
-              const daysInMonth = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate();
-              const dayOfMonth = now2.getDate();
-              const pct2 = Math.round((dayOfMonth / daysInMonth) * 100);
+          <div className="nav-body">
+            {navSections.map(sec => {
+              const items = visibleNav.filter(n => n.section === sec);
+              if (items.length === 0) return null;
               return (
-                <div style={{ padding: "12px 18px", borderTop: `1px solid ${T.border}`, marginTop: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                    <span style={{ fontSize: 10, color: T.fg3, fontWeight: 500, letterSpacing: ".05em", textTransform: "uppercase" }}>Cycle Progress</span>
-                    <span style={{ fontSize: 10, color: T.fg2, fontWeight: 600 }}>{pct2}%</span>
-                  </div>
-                  <div style={{ background: T.border, borderRadius: 4, height: 4, overflow: "hidden" }}>
-                    <div style={{ width: `${pct2}%`, height: "100%", background: T.accent, borderRadius: 4, transition: "width 1s ease" }} />
-                  </div>
-                  <div style={{ fontSize: 10, color: T.fg3, marginTop: 4 }}>Day {dayOfMonth} of {daysInMonth}</div>
+                <div key={sec} className="nav-sec">
+                  <div className="nav-sec-lbl">{sec}</div>
+                  {items.map(item => {
+                    const active = page === item.id;
+                    return (
+                      <button key={item.id} className={`nl${active ? " on" : ""}`} onClick={() => setPage(item.id)}>
+                        <Icon name={item.icon} size={17} color={active ? "var(--accent)" : "var(--fg3)"} className="nl-icon" />
+                        {item.label}
+                      </button>
+                    );
+                  })}
                 </div>
               );
-            })()}
+            })}
+          </div>
 
-            {/* API status + user footer */}
-            <div style={{ padding: "16px 10px 0", borderTop: `1px solid ${T.border}` }}>
-              {apiOnline !== null && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 8px", marginBottom: 12 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: apiOnline ? T.green : T.red, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: apiOnline ? T.green : T.red }}>{apiOnline ? "Connected" : "API offline"}</span>
-                  <button onClick={onLogout} style={{ marginLeft: "auto", background: "none", border: "none", color: T.fg3, fontSize: 11, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                    <Icon name="logout" size={13} color={T.fg3} />
-                  </button>
-                </div>
-              )}
-              {currentUser && (
-                <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px" }}>
-                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg,#2563eb,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 11, flexShrink: 0 }}>
-                    {currentUser.name?.slice(0,2).toUpperCase()}
-                  </div>
-                  <div style={{ overflow: "hidden" }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: T.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser.name}</div>
-                    <div style={{ fontSize: 11, color: T.fg3 }}>{role}</div>
-                  </div>
-                </div>
-              )}
+          <div className="nav-foot">
+            {/* Cycle progress */}
+            <div className="cycle-bar">
+              <div className="cycle-lbl">{now.getFullYear()} · Month {now.getMonth() + 1} of 12</div>
+              <div className="cycle-track"><div className="cycle-fill" style={{ width: `${cycleProgress}%` }} /></div>
+              <div className="cycle-pct">{cycleProgress}% through the year</div>
             </div>
+            {/* API status */}
+            {apiOnline !== null && (
+              <div className="api-dot">
+                <div className="api-dot-ind" style={{ background: apiOnline ? "var(--green)" : "var(--red)" }} />
+                <span style={{ fontSize: 11, color: apiOnline ? "var(--green)" : "var(--red)" }}>{apiOnline ? "Connected" : "API offline"}</span>
+                <button onClick={onLogout} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--fg3)", fontSize: 11, cursor: "pointer", padding: 0 }}>
+                  <Icon name="logout" size={13} color="var(--fg3)" />
+                </button>
+              </div>
+            )}
+            {currentUser && (
+              <div className="nav-user">
+                <div className="uav">{currentUser.name?.slice(0,2).toUpperCase()}</div>
+                <div style={{ overflow: "hidden" }}>
+                  <div className="uname">{currentUser.name}</div>
+                  <div className="urole">{role}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </nav>
+      )}
+
+      {/* Main area */}
+      <div className="main-area">
+        {/* Mobile header */}
+        {viewMode === "mobile" && (
+          <div className="mobile-header">
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <div style={{ width: 26, height: 26, background: "var(--fg)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 9 }}>KA</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>Kaabazim</div>
+                <div style={{ fontSize: 10, color: "var(--fg3)" }}>{role}</div>
+              </div>
+            </div>
+            {currentUser && (
+              <div className="uav">{currentUser.name?.slice(0,2).toUpperCase()}</div>
+            )}
           </div>
         )}
 
-        {/* Main area */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          {/* Mobile header */}
-          {viewMode === "mobile" && (
-            <div style={{ background: T.surface, padding: "12px 20px 10px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <div style={{ width: 26, height: 26, background: T.fg, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 9 }}>KA</div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Kaabazim</div>
-                  <div style={{ fontSize: 10, color: T.fg3 }}>{role}</div>
-                </div>
-              </div>
-              {currentUser && (
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,#2563eb,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 12 }}>
-                  {currentUser.name?.slice(0,2).toUpperCase()}
-                </div>
-              )}
+        {/* Page content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: viewMode === "mobile" ? "0 0 96px" : 0 }}>
+          {!apiOnline && apiOnline !== null && (
+            <div className="api-offline">
+              <div style={{ fontWeight: 700, color: "#e65100", marginBottom: 4 }}>API server is offline</div>
+              <div style={{ fontSize: 12, color: "#bf360c" }}>Run <code style={{ background: "#ffe0b2", padding: "1px 6px", borderRadius: 4 }}>node server.js</code> in the backend folder to start the API.</div>
             </div>
           )}
 
-          {/* Page content */}
-          <div style={{ flex: 1, overflowY: "auto", padding: viewMode === "mobile" ? "0 0 96px" : 0 }}>
-            {!apiOnline && apiOnline !== null && (
-              <div style={{ margin: 20, background: "#FFF3E0", borderRadius: 14, padding: 16, borderLeft: "4px solid #FF9800" }}>
-                <div style={{ fontWeight: 700, color: "#E65100", marginBottom: 4 }}>API server is offline</div>
-                <div style={{ fontSize: 12, color: "#BF360C" }}>Run <code style={{ background: "#FFE0B2", padding: "1px 6px", borderRadius: 4 }}>node server.js</code> in the backend folder to start the API.</div>
-              </div>
-            )}
-
-            <div style={{ padding: viewMode === "desktop" ? "36px 48px" : 0 }}>
-              {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} monthlySummary={monthlySummary} />}
-              {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} viewMode={viewMode} />}
-              {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
-              {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
-              {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} showToast={showToast} onRefresh={loadMembers} />}
-              {page === "report"  && isAdmin && <AnnualReportPage report={annualReport} loading={loading.report} year={reportYear} setYear={setReportYear} />}
-              {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} memberCount={members.filter(m => m.active).length} />}
-            </div>
-          </div>
-
-          {/* Mobile floating nav */}
-          {viewMode === "mobile" && (
-            <MobileNav isAdmin={isAdmin} page={page} setPage={setPage} moreOpen={moreOpen} setMoreOpen={setMoreOpen} />
-          )}
+          <div className={viewMode === "desktop" ? "main" : ""} style={viewMode === "mobile" ? { padding: 0 } : {}}>
+            {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} />}
+            {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} />}
+            {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
+            {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
+            {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} showToast={showToast} onRefresh={loadMembers} />}
+            {page === "report"  && isAdmin && <AnnualReportPage report={annualReport} loading={loading.report} year={reportYear} setYear={setReportYear} />}
+            {page === "settings"      && <SettingsPage role={role} currentUser={currentUser} onLogout={onLogout} memberCount={activeMemberCount} />}
+            {page === "capital"  && isAdmin && <CapitalSheetPage members={members} showToast={showToast} onRefresh={loadMembers} />}
+            {page === "mybalance"             && <MyBalancePage currentUser={currentUser} showToast={showToast} />}
           </div>
         </div>
 
-      {/* Modals & Overlays */}
+        {/* Mobile floating nav */}
+        {viewMode === "mobile" && (
+          <MobileNav isAdmin={isAdmin} page={page} setPage={setPage} moreOpen={moreOpen} setMoreOpen={setMoreOpen} />
+        )}
+      </div>
 
+      {/* Modals & Overlays */}
       {selectedMeeting   && <PDFModal meeting={selectedMeeting} members={members} onClose={() => setSelectedMeeting(null)} />}
       {transcriptMeeting && <TranscriptPanel meeting={transcriptMeeting} onClose={() => setTranscriptMeeting(null)} />}
       {addMemberModal    && <AddMemberModal onClose={() => setAddMemberModal(false)} onAdd={handleAddMember} members={members} />}
@@ -681,7 +612,7 @@ function ChamaFlow({ onLogout }) {
 
       {/* Toast */}
       {toast && (
-        <div className="toast-in" style={{ position: "fixed", bottom: 100, right: 20, zIndex: 9999, background: toast.type === "success" ? "#1A1A1A" : "#C62828", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 13, fontWeight: 500, boxShadow: "0 8px 28px rgba(0,0,0,0.25)", maxWidth: 300 }}>
+        <div className="toast-in" style={{ position: "fixed", bottom: 100, right: 20, zIndex: 9999, background: toast.type === "success" ? "var(--fg)" : "var(--red)", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 13, fontWeight: 500, boxShadow: "0 8px 28px rgba(0,0,0,0.25)", maxWidth: 300 }}>
           {toast.type === "success" ? "✓ " : "✗ "}{toast.msg}
         </div>
       )}
@@ -692,15 +623,16 @@ function ChamaFlow({ onLogout }) {
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 
-function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh, members, monthlySummary }) {
+const AVATAR_CLASSES = ["a0","a1","a2","a3","a4","a5","a6","a7","a8","a9","a10","a11"];
+
+function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh, members }) {
   const isDesktop = viewMode === "desktop";
+
   if (loading) return (
     <div style={{ padding: isDesktop ? 0 : 20 }}>
-      <div style={{ marginBottom: 20 }}><Skeleton h={14} w={120} /><div style={{ marginTop: 6 }}><Skeleton h={26} w={180} /></div></div>
-      <Skeleton h={110} r={16} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
-        <Skeleton h={80} r={14} /><Skeleton h={80} r={14} /><Skeleton h={80} r={14} /><Skeleton h={80} r={14} />
-      </div>
+      <div style={{ marginBottom: 24 }}><Skeleton h={14} w={80} /><div style={{ marginTop: 8 }}><Skeleton h={28} w={200} /></div></div>
+      <Skeleton h={100} r={12} />
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>{[1,2,3,4].map(k=><Skeleton key={k} h={90} r={12}/>)}</div>
     </div>
   );
 
@@ -708,305 +640,303 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
   const monthlyExpected = dashboard?.monthly_expected ?? (member?.shares || 1) * 5000;
   const monthlyPaid     = dashboard?.monthly_paid     ?? 0;
   const isPaid          = dashboard?.contribution_status === "Paid";
+  const pct             = Math.min((monthlyPaid / monthlyExpected) * 100, 100);
+  const circumference   = 2 * Math.PI * 24; // r=24
+  const strokeOffset    = circumference - (pct / 100) * circumference;
+  const activeMembers   = members ? members.filter(m => m.active) : [];
+  const paidThisMonth   = dashboard?.monthly_paid_members ?? 0;
+  const pendingCount    = activeMembers.length - paidThisMonth;
 
-  // Ring gauge — % of members who paid this month from monthlySummary
-  const activeMembers  = members?.filter(m => m.active) ?? [];
-  const paidCount      = monthlySummary?.filter(s => s.status === "Paid").length ?? (isPaid ? 1 : 0);
-  const totalActive    = activeMembers.length || 1;
-  const paidPct        = Math.round((paidCount / totalActive) * 100);
-  const R = 42, C = 2 * Math.PI * R;
-  const dash = (paidPct / 100) * C;
+  const pad = isDesktop ? 0 : 20;
 
-  // Metric tiles
-  const myPct = Math.min(Math.round((monthlyPaid / monthlyExpected) * 100), 100);
+  return (
+    <div style={{ padding: pad }} className="fade-up">
+      {/* Topbar */}
+      {isDesktop && (
+        <div className="topbar">
+          <input className="search-box" placeholder="Search members, contributions…" readOnly />
+          <div className="tbr">
+            <div className="icon-btn">🔔<span className="dot"/></div>
+            <button className="btn btn-o btn-sm" onClick={() => setPage("record")}>Import Data</button>
+            <button className="btn btn-p btn-sm" onClick={() => setPage("record")}>+ Add Contribution</button>
+          </div>
+        </div>
+      )}
 
-  const statusBanner = (
-    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px 24px", marginBottom: 14, display: "flex", alignItems: "center", gap: 20 }}>
-      {/* Ring gauge */}
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <svg width={100} height={100} viewBox="0 0 100 100">
-          <circle cx={50} cy={50} r={R} fill="none" stroke={T.border} strokeWidth={9} />
-          <circle cx={50} cy={50} r={R} fill="none" stroke={T.accent} strokeWidth={9}
-            strokeDasharray={`${dash} ${C - dash}`} strokeLinecap="round"
-            transform="rotate(-90 50 50)" style={{ transition: "stroke-dasharray 1s ease" }} />
-        </svg>
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: T.fg, lineHeight: 1 }}>{paidPct}%</div>
-          <div style={{ fontSize: 9, color: T.fg3, marginTop: 2 }}>paid</div>
+      <div className="page-h">Dashboard</div>
+      <div className="page-sub">{CURRENT_MONTH} · Kaabazim Self Help Group</div>
+
+      {/* Status banner */}
+      <div className="status-banner">
+        <div className="ring-wrap">
+          <svg width="60" height="60" viewBox="0 0 60 60">
+            <circle className="rt" cx="30" cy="30" r="24"/>
+            <circle className={`rf${isPaid ? " paid" : ""}`} cx="30" cy="30" r="24"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeOffset}/>
+          </svg>
+          <div className="ring-lbl">
+            <span className="ring-pct">{Math.round(pct)}%</span>
+            <span className="ring-sub">PAID</span>
+          </div>
+        </div>
+        <div className="sb-body">
+          <div className="sb-lbl">{CURRENT_MONTH} · Collection Status</div>
+          <div className="sb-title">
+            {isPaid ? `You are paid up for ${CURRENT_MONTH}` : `${fmt(monthlyPaid)} of ${fmt(monthlyExpected)} collected`}
+          </div>
+          <div className="sb-hint">
+            {isPaid ? "Great work — all contributions confirmed." : `${pendingCount} member${pendingCount !== 1 ? "s" : ""} pending · Due ${CURRENT_MONTH}`}
+          </div>
+        </div>
+        <div className="sb-actions">
+          <button className="btn btn-o btn-sm" onClick={onRefresh}>↻ Refresh</button>
+          <button className="btn btn-p btn-sm" onClick={() => setPage("record")}>Record</button>
         </div>
       </div>
-      {/* Status text */}
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 10, color: T.fg3, letterSpacing: ".05em", textTransform: "uppercase", marginBottom: 4 }}>{CURRENT_MONTH}</div>
-        <div style={{ fontSize: 20, fontWeight: 400, color: T.fg, fontFamily: T.serif, letterSpacing: "-0.5px", marginBottom: 6 }}>
-          {paidCount} of {totalActive} paid
-        </div>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: isPaid ? T.grnL : T.ambL, border: `1px solid ${isPaid ? "#86efac" : "#fcd34d"}` }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: isPaid ? T.green : T.amber }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: isPaid ? T.green : T.amber }}>
-            {isPaid ? "Your contribution is paid" : "Your contribution is pending"}
-          </span>
-        </div>
-      </div>
-      {/* Refresh */}
-      <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh"
-        style={{ background: T.sf2, border: `1px solid ${T.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.fg2, fontSize: 18, flexShrink: 0 }}>
-        <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
-      </button>
-    </div>
-  );
 
-  const metricTiles = (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-      {[
-        { label: "Total Savings", value: fmt(totalSavings), sub: "Group fund", bg: T.accL, accent: T.accent },
-        { label: "My Monthly Due", value: fmt(monthlyExpected), sub: `${myPct}% paid`, bg: isPaid ? T.grnL : T.ambL, accent: isPaid ? T.green : T.amber },
-        { label: "My Shares", value: member?.shares ?? 1, sub: "share unit" + ((member?.shares ?? 1) > 1 ? "s" : ""), bg: T.sf2, accent: T.fg2 },
-        { label: "Role", value: role, sub: "access level", bg: T.sf2, accent: T.fg2 },
-      ].map(({ label, value, sub, bg, accent }) => (
-        <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px 18px" }}>
-          <div style={{ fontSize: 10, color: T.fg3, letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: accent, lineHeight: 1, marginBottom: 4 }}>{value}</div>
-          <div style={{ fontSize: 11, color: T.fg3 }}>{sub}</div>
-        </div>
-      ))}
-    </div>
-  );
-
-  // Member grid (3 col on desktop, 4 col on wide)
-  const memberGrid = activeMembers.length > 0 && (
-    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Members</div>
-        <button onClick={() => setPage("members")} style={{ background: "none", border: "none", fontSize: 11, color: T.accent, cursor: "pointer", fontWeight: 500 }}>
-          View all →
-        </button>
+      {/* Metric tiles */}
+      <div className="metrics">
+        {[
+          { lbl: "Total Savings", val: fmt(totalSavings), ch: "All-time", ico: "💰" },
+          { lbl: "Monthly Target", val: fmt(monthlyExpected), ch: CURRENT_MONTH, ico: "📅" },
+          { lbl: "Active Members", val: activeMembers.length, ch: `${paidThisMonth} paid this month`, ico: "👥" },
+          { lbl: "Pending", val: pendingCount, ch: "need to pay", ico: "⏳" },
+        ].map(m => (
+          <div key={m.lbl} className="metric">
+            <div className="m-ico">{m.ico}</div>
+            <div className="m-lbl">{m.lbl}</div>
+            <div className="m-val">{m.val}</div>
+            <div className="m-ch">{m.ch}</div>
+          </div>
+        ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
-        {activeMembers.slice(0, isDesktop ? 12 : 8).map((m, i) => {
-          const paid = monthlySummary?.find(s => s.member_id === m.id)?.status === "Paid";
-          const bg   = AVATAR_COLORS[i % AVATAR_COLORS.length];
+
+      {/* Member grid */}
+      <div className="sec-row">
+        Member activity <span className="ccount">{activeMembers.length}</span>
+        <button className="sec-link" onClick={() => setPage("members")}>View all →</button>
+      </div>
+      <div className="mg">
+        {activeMembers.slice(0, 6).map((m, i) => {
+          const initials = m.name?.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+          const avCls = AVATAR_CLASSES[i % AVATAR_CLASSES.length];
           return (
-            <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "10px 6px", borderRadius: 10, background: T.sf2 }}>
-              <div style={{ position: "relative" }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13 }}>
-                  {m.name?.charAt(0)}
+            <div key={m.id} className="mc">
+              <div className="mc-top">
+                <div className={`mc-av ${avCls}`}>{initials}</div>
+                <div>
+                  <div className="mc-name">{m.name}</div>
+                  <div className="mc-role">{m.role}</div>
                 </div>
-                <div style={{ position: "absolute", bottom: -1, right: -1, width: 11, height: 11, borderRadius: "50%", border: "2px solid #fff", background: paid ? T.green : T.amber }} />
+                <span className="pill pill-b" style={{ marginLeft: "auto" }}>
+                  {m.shares} share{m.shares > 1 ? "s" : ""}
+                </span>
               </div>
-              <div style={{ fontSize: 10, fontWeight: 500, color: T.fg, textAlign: "center", lineHeight: 1.3, maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
-                {m.name?.split(" ")[0]}
+              <div className="mc-desc">{m.phone}</div>
+              <div className="mc-ft">
+                <div className="mc-kv"><div className="k">Monthly</div><div className="v">{fmt(m.shares * 5000)}</div></div>
+                <div className="mc-kv"><div className="k">Status</div><div className="v" style={{ color: "var(--fg2)" }}>—</div></div>
               </div>
             </div>
           );
         })}
       </div>
-    </div>
-  );
 
-  const activityCard = (
-    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-      <div style={{ padding: "16px 20px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>Recent Activity</div>
-        <button onClick={() => setPage("contributions")} style={{ background: "none", border: "none", fontSize: 11, color: T.accent, cursor: "pointer", fontWeight: 500 }}>View all →</button>
-      </div>
-      {dashboard?.recent_contributions?.length > 0 ? (
-        <div style={{ padding: "0 20px 16px" }}>
-          {dashboard.recent_contributions.slice(0, 6).map((c, i, arr) => {
-            const tm = TYPE_META[c.type] || TYPE_META.Contribution;
-            return (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : "none", marginBottom: i < arr.length - 1 ? 12 : 0 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: tm.bg, border: `1px solid ${tm.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: tm.text, flexShrink: 0 }}>
-                  {tm.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{c.member_name || "You"} · {c.month}</div>
-                  <div style={{ fontSize: 10, color: T.fg3, marginTop: 1 }}>{c.type} · {c.method}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: tm.text, textAlign: "right" }}>{fmt(c.amount)}</div>
-                  <div style={{ fontSize: 10, color: c.status === "Confirmed" ? T.green : T.amber, textAlign: "right", marginTop: 1 }}>{c.status}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div style={{ padding: "12px 20px 20px", fontSize: 12, color: T.fg3, textAlign: "center" }}>No recent activity</div>
-      )}
-    </div>
-  );
-
-  return (
-    <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: T.fg3 }}>Welcome back,</div>
-        <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, letterSpacing: "-0.5px", fontFamily: T.serif }}>
-          {member?.name?.split(" ")[0] ?? "…"}
-        </div>
-      </div>
-
-      {isDesktop ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
-          <div>
-            {statusBanner}
-            {metricTiles}
-            {memberGrid}
+      {/* Lower: recent contributions + quick actions */}
+      <div className="lower">
+        <div className="card">
+          <div className="card-hd">
+            <span className="card-title">Recent Contributions</span>
+            <button className="sec-link" onClick={() => setPage("contributions")}>View all →</button>
           </div>
-          <div>{activityCard}</div>
+          {dashboard?.recent_contributions?.length > 0 ? (
+            <table className="contrib-table">
+              <thead>
+                <tr>
+                  <th>Member</th><th>Month</th><th>Type</th><th>Amount</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboard.recent_contributions.slice(0, 8).map(c => {
+                  const tm = TYPE_META[c.type] || TYPE_META.Contribution;
+                  return (
+                    <tr key={c.id}>
+                      <td style={{ fontWeight: 500 }}>{c.member_name || member?.name}</td>
+                      <td style={{ color: "var(--fg2)" }}>{c.month}</td>
+                      <td><span className="pill pill-n">{c.type}</span></td>
+                      <td className="amount-col" style={{ color: tm.text }}>{fmt(c.amount)}</td>
+                      <td>
+                        <span className={`pill ${c.status === "Confirmed" ? "pill-g" : "pill-a"}`}>
+                          {c.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <EmptyState type="activity" title="No recent activity" subtitle="Contributions will appear here." />
+          )}
         </div>
-      ) : (
-        <>
-          {statusBanner}
-          {metricTiles}
-          {memberGrid}
-          {activityCard}
-        </>
-      )}
+
+        <div className="card tasks-panel">
+          <div className="card-hd">
+            <span className="card-title">Quick Actions</span>
+          </div>
+          <div className="task-list">
+            {[
+              { lbl: "Record this month's contributions", p: "ph", onClick: () => setPage("record") },
+              { lbl: "Review pending payments", p: "pm", onClick: () => setPage("contributions") },
+              { lbl: "Schedule next meeting", p: "pn", onClick: () => setPage("meetings") },
+              { lbl: "View annual report", p: "pn", onClick: () => setPage("report") },
+            ].map((t, i) => (
+              <div key={i} className="task" style={{ cursor: "pointer" }} onClick={t.onClick}>
+                <div className="tck"/>
+                <span className="tsk-lbl">{t.lbl}</span>
+                <span className={`tsk-p ${t.p}`}>{t.p === "ph" ? "High" : t.p === "pm" ? "Med" : "Low"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ── Contributions Page ────────────────────────────────────────────────────────
 
-function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh, viewMode }) {
-  const isDesktop     = viewMode === "desktop";
-  const totalShares   = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
+function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh }) {
+  const totalShares      = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
   const totalFines       = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
   const totalLateness    = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
-  const totalLateContrib = contributions.filter(c => c.type === "Late Contribution").reduce((s,c) => s+c.amount, 0);
-  const grandTotal    = contributions.reduce((s,c) => s+c.amount, 0);
+  const grandTotal       = contributions.reduce((s,c) => s+c.amount, 0);
   const selectedMemberName = members.find(m => m.id === parseInt(filterMember))?.name;
 
   return (
-    <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Contributions</div>
-        <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>
-          {isAdmin ? (filterMember !== "All" ? `Viewing: ${selectedMemberName}` : "All members") : "Your payment history"}
+    <div style={{ padding: 20 }} className="fade-up">
+      {/* Topbar */}
+      <div className="topbar">
+        <div className="page-h" style={{ marginBottom: 0 }}>Contributions</div>
+        <div className="tbr">
+          <button className="btn btn-o btn-sm" onClick={onRefresh} disabled={loading}>↻ Refresh</button>
+          {isAdmin && <button className="btn btn-p btn-sm" onClick={() => {}}>+ Record</button>}
         </div>
       </div>
+      <div className="page-sub">
+        {isAdmin ? (filterMember !== "All" ? `Viewing: ${selectedMemberName}` : "All members") : "Your payment history"}
+      </div>
 
-      {/* Summary hero */}
-      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20, marginBottom: 14, position: "relative" }}>
-        <button onClick={onRefresh} disabled={loading} className="refresh-btn" data-tooltip="Refresh"
-          style={{ position: "absolute", top: 14, right: 14, background: T.sf2, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: loading ? "default" : "pointer", color: T.fg2, fontSize: 18, transition: "background 0.15s", zIndex: 1 }}>
-          <span style={{ display: "inline-block", animation: loading ? "spin 0.8s linear infinite" : "none" }}>↻</span>
-        </button>
-        <div style={{ fontSize: 10, color: T.fg3, letterSpacing: 1, marginBottom: 10, paddingRight: 44 }}>{filterYear} TOTAL</div>
-        <div style={{ fontSize: 30, fontWeight: 700, color: T.fg, letterSpacing: "-1px", fontFamily: T.serif, marginBottom: 14 }}>{fmt(grandTotal)}</div>
-        <div style={{ display: "flex", gap: 0 }}>
-          {[["SHARES", `${totalShares} shares`, T.accent],["FINES", totalFines > 0 ? fmt(totalFines) : "—", T.red],["LATENESS", totalLateness > 0 ? fmt(totalLateness) : "—", T.amber]].map(([k,v,c],i) => (
-            <div key={k} style={{ flex: 1, paddingLeft: i > 0 ? 12 : 0, paddingRight: i < 2 ? 12 : 0, borderRight: i < 2 ? `1px solid ${T.border}` : "none" }}>
-              <div style={{ fontSize: 9, color: T.fg3, letterSpacing: 0.5 }}>{k}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 3 }}>{v}</div>
-            </div>
-          ))}
+      {/* Summary card */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div className="summary-year">{filterYear} TOTAL</div>
+            <div className="summary-total">{fmt(grandTotal)}</div>
+          </div>
+          <div style={{ display: "flex", gap: 20, marginTop: 4 }}>
+            {[["SHARES", `${totalShares}`, "var(--accent)"], ["FINES", totalFines > 0 ? fmt(totalFines) : "—", "var(--red)"], ["LATENESS", totalLateness > 0 ? fmt(totalLateness) : "—", "var(--amber)"]].map(([k,v,c]) => (
+              <div key={k}>
+                <div style={{ fontSize: 9, color: "var(--fg3)", letterSpacing: .5 }}>{k}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 3 }}>{v}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ display: "flex", background: "#ECEAE4", borderRadius: 10, padding: 3 }}>
-            {[String(now.getFullYear()-1), String(now.getFullYear())].map(y => (
-              <button key={y} onClick={() => setFilterYear(y)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: filterYear === y ? "#fff" : "transparent", color: filterYear === y ? "#1A1A1A" : "#888", boxShadow: filterYear === y ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>{y}</button>
-            ))}
-          </div>
-          <div style={{ display: "flex", background: "#ECEAE4", borderRadius: 10, padding: 3 }}>
-            {["All","Confirmed","Pending"].map(s => (
-              <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: "6px 10px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: filterStatus === s ? "#fff" : "transparent", color: filterStatus === s ? "#1A1A1A" : "#888", boxShadow: filterStatus === s ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>{s}</button>
-            ))}
-          </div>
+      <div className="filter-bar">
+        <div style={{ display: "flex", background: "var(--sf3)", borderRadius: 10, padding: 3 }}>
+          {[String(now.getFullYear()-1), String(now.getFullYear())].map(y => (
+            <button key={y} onClick={() => setFilterYear(y)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: filterYear === y ? "#fff" : "transparent", color: filterYear === y ? "var(--fg)" : "var(--fg3)", boxShadow: filterYear === y ? "var(--shadow)" : "none" }}>{y}</button>
+          ))}
         </div>
-
+        <div style={{ display: "flex", background: "var(--sf3)", borderRadius: 10, padding: 3 }}>
+          {["All","Confirmed","Pending"].map(s => (
+            <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: "5px 10px", borderRadius: 7, border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: filterStatus === s ? "#fff" : "transparent", color: filterStatus === s ? "var(--fg)" : "var(--fg3)", boxShadow: filterStatus === s ? "var(--shadow)" : "none" }}>{s}</button>
+          ))}
+        </div>
         {isAdmin && (
-          <div style={{ display: "flex", gap: 8 }}>
-            <select value={filterMember} onChange={e => setFilterMember(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
+          <>
+            <select className="filter-select" value={filterMember} onChange={e => setFilterMember(e.target.value)}>
               <option value="All">All Members</option>
               {members.filter(m => m.active).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} style={{
-              ...selectStyle,
-              fontWeight: filterType !== "All" ? 700 : 400,
-              color: filterType !== "All" ? TYPE_META[filterType]?.text : "#1A1A1A",
-              background: filterType !== "All" ? TYPE_META[filterType]?.bg : "#fff",
-              borderColor: filterType !== "All" ? TYPE_META[filterType]?.border : "#ECEAE4",
-            }}>
+            <select className="filter-select" value={filterType} onChange={e => setFilterType(e.target.value)}>
               <option value="All">All Types</option>
-              <option value="Contribution">Contribution (min KES 5,000)</option>
-              <option value="Fine">Fine (KES 500)</option>
-              <option value="Lateness">Lateness (KES 200)</option>
-              <option value="Late Contribution">Late Contribution (10%/share)</option>
+              <option value="Contribution">Contribution</option>
+              <option value="Fine">Fine</option>
+              <option value="Lateness">Lateness</option>
+              <option value="Late Contribution">Late Contribution</option>
             </select>
-          </div>
+          </>
         )}
-
         {(filterMember !== "All" || filterType !== "All") && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {filterMember !== "All" && (
-              <Chip label={`👤 ${selectedMemberName?.split(" ")[0]}`} onRemove={() => setFilterMember("All")} dark />
-            )}
-            {filterType !== "All" && (
-              <Chip label={`${TYPE_META[filterType]?.icon} ${filterType}`} onRemove={() => setFilterType("All")} bg={TYPE_META[filterType]?.bg} color={TYPE_META[filterType]?.text} border={TYPE_META[filterType]?.border} />
-            )}
-          </div>
+          <>
+            {filterMember !== "All" && <Chip label={`👤 ${selectedMemberName?.split(" ")[0]}`} onRemove={() => setFilterMember("All")} dark />}
+            {filterType !== "All" && <Chip label={filterType} onRemove={() => setFilterType("All")} />}
+          </>
         )}
       </div>
 
-      <div style={{ fontSize: 11, color: "#BBB", marginBottom: 12 }}>{loading ? "Loading…" : `${contributions.length} record${contributions.length !== 1 ? "s" : ""}`}</div>
+      <div style={{ fontSize: 11, color: "var(--fg3)", marginBottom: 12 }}>
+        {loading ? "Loading…" : `${contributions.length} record${contributions.length !== 1 ? "s" : ""}`}
+      </div>
 
       {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[1,2,3,4,5].map(k => <Skeleton key={k} h={52} r={10} />)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[1,2,3].map(k => <Skeleton key={k} h={48} r={8} />)}
         </div>
       ) : contributions.length === 0 ? (
         <EmptyState
           type="contributions"
           title="No contributions found"
           subtitle={filterMember !== "All" || filterStatus !== "All" || filterType !== "All"
-            ? "Try adjusting your filters to see more records."
-            : "No payments have been recorded yet for this period."}
+            ? "Try adjusting your filters." : "No payments recorded yet."}
         />
       ) : (
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-          {/* Table header */}
-          <div style={{ display: "grid", gridTemplateColumns: isAdmin ? "2fr 1.2fr 1.2fr 1fr 1fr 1fr auto" : "2fr 1.2fr 1.2fr 1fr 1fr auto", padding: "10px 16px", background: T.sf2, borderBottom: `1px solid ${T.border}` }}>
-            {(isAdmin ? ["Member","Month","Type","Amount","Method","Status",""] : ["Month","Type","Amount","Method","Status",""]).map((h, i) => (
-              <div key={i} style={{ fontSize: 10, fontWeight: 600, color: T.fg3, letterSpacing: ".05em", textTransform: "uppercase", textAlign: i > (isAdmin ? 2 : 1) ? "right" : "left" }}>{h}</div>
-            ))}
-          </div>
-          {contributions.map((c, i) => {
-            const tm = TYPE_META[c.type] || TYPE_META.Contribution;
-            return (
-              <div key={c.id} style={{ display: "grid", gridTemplateColumns: isAdmin ? "2fr 1.2fr 1.2fr 1fr 1fr 1fr auto" : "2fr 1.2fr 1.2fr 1fr 1fr auto", padding: "12px 16px", borderBottom: i < contributions.length - 1 ? `1px solid ${T.border}` : "none", alignItems: "center", animation: `fadeUp 0.2s ease ${Math.min(i,10)*0.03}s both` }}>
-                {isAdmin && (
-                  <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{c.member_name}</div>
-                )}
-                <div style={{ fontSize: 12, color: T.fg2 }}>{c.month}</div>
-                <div>
-                  <span style={{ padding: "3px 9px", borderRadius: 20, background: tm.bg, color: tm.text, fontSize: 11, fontWeight: 600, border: `1px solid ${tm.border}` }}>{tm.icon} {c.type}</span>
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: tm.text, textAlign: "right" }}>{fmt(c.amount)}</div>
-                <div style={{ textAlign: "right" }}>
-                  <Tag label={c.method} color={c.method === "M-Pesa" ? "#E3F2FD" : "#F3E5F5"} text={c.method === "M-Pesa" ? "#1565C0" : "#6A1B9A"} />
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <Tag label={c.status} color={c.status === "Confirmed" ? T.grnL : T.ambL} text={c.status === "Confirmed" ? T.green : T.amber} />
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  {c.status === "Pending" && isAdmin ? (
-                    <button className="btn" onClick={() => onConfirm(c.id)} disabled={confirmingId === c.id}
-                      style={{ background: confirmingId === c.id ? T.border : T.fg, color: confirmingId === c.id ? T.fg3 : "#fff", border: "none", borderRadius: 7, padding: "5px 11px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                      {confirmingId === c.id ? "…" : "Confirm"}
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: 10, color: T.fg3 }}>{c.ref ? `#${c.ref}` : "—"}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <table className="contrib-table">
+            <thead>
+              <tr>
+                {isAdmin && <th>Member</th>}
+                <th>Month</th>
+                <th>Type</th>
+                <th>Method</th>
+                <th>Amount</th>
+                <th>Status</th>
+                {isAdmin && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {contributions.map((c, i) => {
+                const tm = TYPE_META[c.type] || TYPE_META.Contribution;
+                return (
+                  <tr key={c.id} style={{ animation: `fadeUp 0.2s ease ${Math.min(i,12)*0.03}s both` }}>
+                    {isAdmin && <td style={{ fontWeight: 500 }}>{c.member_name}</td>}
+                    <td style={{ color: "var(--fg2)" }}>{c.month}</td>
+                    <td><span className="pill pill-n">{c.type}</span></td>
+                    <td style={{ color: "var(--fg2)" }}>{c.method}</td>
+                    <td className="amount-col" style={{ color: tm.text }}>{fmt(c.amount)}</td>
+                    <td>
+                      <span className={`pill ${c.status === "Confirmed" ? "pill-g" : "pill-a"}`}>{c.status}</span>
+                    </td>
+                    {isAdmin && (
+                      <td>
+                        {c.status === "Pending" && (
+                          <button className="btn btn-p btn-sm" onClick={() => onConfirm(c.id)} disabled={confirmingId === c.id} style={{ padding: "4px 10px", fontSize: 11 }}>
+                            {confirmingId === c.id ? "…" : "Confirm"}
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -1015,7 +945,7 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
 
 function Chip({ label, onRemove, dark, bg, color, border }) {
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: dark ? "#1A1A1A" : bg, color: dark ? "#F0EDE6" : color, border: border ? `1px solid ${border}` : "none", padding: "4px 10px 4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: dark ? "var(--fg)" : (bg || "var(--sf2)"), color: dark ? "#f0ede6" : (color || "var(--fg2)"), border: border ? `1px solid ${border}` : "none", padding: "4px 10px 4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
       {label}
       <button onClick={onRemove} style={{ background: "rgba(128,128,128,0.2)", border: "none", color: "inherit", borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, cursor: "pointer", padding: 0 }}>✕</button>
     </div>
@@ -2616,67 +2546,67 @@ function ImportDataModal({ onClose, showToast, onRefresh }) {
 
 function MembersPage({ members, loading, onAdd, onToggle, onEdit, viewMode, showToast, onRefresh }) {
   const [showImport, setShowImport] = useState(false);
-  const active = members.filter(m => m.active).length;
-  const isDesktop = viewMode === "desktop";
+  const [search, setSearch] = useState("");
+  const active = members.filter(m => m.active);
+  const filtered = active.filter(m => !search || m.name.toLowerCase().includes(search.toLowerCase()) || m.phone.includes(search));
+
   return (
-    <div style={{ padding: isDesktop ? 0 : 20 }} className="fade-up">
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <div>
-          <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Members</div>
-          <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>{active} active · {members.length} total</div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn" onClick={() => setShowImport(true)} style={{ background: T.sf2, color: T.fg2, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>Import</button>
-          <button className="btn" onClick={onAdd} style={{ background: T.fg, color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Member
-          </button>
+    <div style={{ padding: 20 }} className="fade-up">
+      {/* Topbar */}
+      <div className="topbar">
+        <div className="page-h" style={{ marginBottom: 0 }}>Members</div>
+        <div className="tbr">
+          <button className="btn btn-o btn-sm" onClick={() => setShowImport(true)}>📥 Import</button>
+          <button className="btn btn-p btn-sm" onClick={onAdd}>+ Add Member</button>
         </div>
       </div>
+      <div className="page-sub">{active.length} active members</div>
       {showImport && <ImportDataModal onClose={() => setShowImport(false)} showToast={showToast} onRefresh={onRefresh} />}
 
-      {/* Role stat tiles */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
-        {[
-          ["Chairman", members.filter(m=>m.role==="Chairman"&&m.active).length, T.ambL, T.amber],
-          ["Secretary", members.filter(m=>m.role==="Secretary"&&m.active).length, T.grnL, T.green],
-          ["Members",   members.filter(m=>m.role==="Member"&&m.active).length,  T.accL, T.accent],
-        ].map(([r, c, bg, tc]) => (
-          <div key={r} style={{ background: bg, border: `1px solid ${tc}22`, borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: tc }}>{c}</div>
-            <div style={{ fontSize: 10, color: tc, fontWeight: 500, marginTop: 3 }}>{r}</div>
+      {/* Stats row */}
+      <div className="metrics" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>
+        {[["Chairman", members.filter(m=>m.role==="Chairman"&&m.active).length, "var(--amber)", "var(--amb-l)"],
+          ["Secretary", members.filter(m=>m.role==="Secretary"&&m.active).length, "var(--green)", "var(--grn-l)"],
+          ["Members", members.filter(m=>m.role==="Member"&&m.active).length, "var(--accent)", "var(--acc-l)"]].map(([r,c,col,bg]) => (
+          <div key={r} className="metric" style={{ background: bg, borderColor: "transparent" }}>
+            <div className="m-val" style={{ color: col, fontSize: 28 }}>{c}</div>
+            <div className="m-lbl" style={{ color: col }}>{r}</div>
           </div>
         ))}
       </div>
 
+      {/* Search */}
+      <div className="filter-bar">
+        <input className="search-box" style={{ maxWidth: "100%", flex: 1 }} placeholder="Search members…" value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
       {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr", gap: 10 }}>
-          {[1,2,3,4,5,6].map(k => <Skeleton key={k} h={110} r={14} />)}
-        </div>
-      ) : members.length === 0 ? (
-        <EmptyState type="members" title="No members yet" subtitle="Add your first member to get started." action="+ Add Member" onAction={onAdd} />
+        <div className="mg">{[1,2,3,4,5,6].map(k => <Skeleton key={k} h={120} r={12} />)}</div>
+      ) : filtered.length === 0 ? (
+        <EmptyState type="members" title="No members found" subtitle={search ? "Try a different search." : "Add your first member."} action="+ Add Member" onAction={onAdd} />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(3, 1fr)" : "1fr", gap: 10 }}>
-          {members.map((m, i) => {
-            const avatarBg = AVATAR_COLORS[i % AVATAR_COLORS.length];
+        <div className="mg">
+          {filtered.map((m, i) => {
+            const initials = m.name?.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+            const avCls = AVATAR_CLASSES[i % AVATAR_CLASSES.length];
             return (
-              <div key={m.id} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, animation: `fadeUp 0.2s ease ${Math.min(i,10)*0.03}s both`, opacity: m.active ? 1 : 0.55 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>
-                    {m.name?.charAt(0)}
+              <div key={m.id} className="mc" style={{ animation: `fadeUp 0.2s ease ${Math.min(i,10)*0.04}s both`, opacity: m.active ? 1 : 0.5 }}>
+                <div className="mc-top">
+                  <div className={`mc-av ${avCls}`}>{initials}</div>
+                  <div>
+                    <div className="mc-name">{m.name}</div>
+                    <div className="mc-role">{m.role}</div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: T.fg }}>{m.name}</div>
-                      {!m.active && <Tag label="Inactive" color={T.sf2} text={T.fg3} />}
-                    </div>
-                    <div style={{ fontSize: 11, color: T.fg3, marginTop: 2 }}>{m.role} · {m.shares} share{m.shares !== 1 ? "s" : ""}</div>
-                    <div style={{ fontSize: 11, color: T.fg3 }}>{m.phone}</div>
-                  </div>
+                  <span className="pill pill-n" style={{ marginLeft: "auto" }}>{m.shares}sh</span>
                 </div>
-                <div style={{ display: "flex", gap: 7 }}>
-                  <button className="btn" onClick={() => onEdit(m)} style={{ flex: 1, background: T.sf2, color: T.fg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 0", fontSize: 11, fontWeight: 600 }}>Edit</button>
-                  <button className="btn" onClick={() => onToggle(m.id, !!m.active)} style={{ flex: 1, background: m.active ? T.ambL : T.grnL, color: m.active ? T.amber : T.green, border: `1px solid ${m.active ? "#fcd34d" : "#86efac"}`, borderRadius: 8, padding: "7px 0", fontSize: 11, fontWeight: 600 }}>
+                <div className="mc-desc">{m.phone}</div>
+                <div className="mc-ft">
+                  <div className="mc-kv"><div className="k">Monthly</div><div className="v">{fmt(m.shares * 5000)}</div></div>
+                  <div className="mc-kv"><div className="k">Status</div><div className="v" style={{ color: m.active ? "var(--green)" : "var(--fg3)" }}>{m.active ? "Active" : "Inactive"}</div></div>
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                  <button className="btn btn-o btn-sm" style={{ flex: 1 }} onClick={() => onEdit(m)}>Edit</button>
+                  <button className="btn btn-sm" style={{ flex: 1, background: m.active ? "var(--amb-l)" : "var(--acc-l)", color: m.active ? "var(--amber)" : "var(--accent)" }} onClick={() => onToggle(m.id, !!m.active)}>
                     {m.active ? "Deactivate" : "Activate"}
                   </button>
                 </div>
@@ -2785,107 +2715,81 @@ function SettingsPinBoxes({ value, onChange, hasError }) {
 
 function SettingsPage({ role, currentUser, onLogout, memberCount }) {
   const [showPinModal, setShowPinModal] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile");
+  const [settingsTab, setSettingsTab] = useState("chama");
 
   const tabs = [
-    { id: "profile", label: "Profile" },
-    { id: "chama",   label: "Chama" },
-    { id: "system",  label: "System" },
+    { id: "chama", label: "Chama Details" },
+    { id: "profile", label: "My Profile" },
+    { id: "system", label: "System" },
   ];
 
   return (
     <div style={{ padding: 20 }} className="fade-up">
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 24, fontWeight: 400, color: T.fg, fontFamily: T.serif }}>Settings</div>
-        <div style={{ fontSize: 12, color: T.fg3, marginTop: 2 }}>Manage your account and chama</div>
-      </div>
+      <div className="page-h">Settings</div>
+      <div className="page-sub">Chama configuration</div>
 
-      {/* Tab nav */}
-      <div style={{ display: "flex", background: T.sf2, borderRadius: 10, padding: 3, marginBottom: 20, alignSelf: "flex-start", width: "fit-content", border: `1px solid ${T.border}` }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding: "7px 18px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: activeTab === t.id ? T.surface : "transparent", color: activeTab === t.id ? T.fg : T.fg2, boxShadow: activeTab === t.id ? "0 1px 4px rgba(0,0,0,0.08)" : "none" }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className="settings-grid">
+        {/* Nav */}
+        <div className="settings-nav">
+          {tabs.map(t => (
+            <button key={t.id} className={`snl${settingsTab === t.id ? " on" : ""}`} onClick={() => setSettingsTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-      {activeTab === "profile" && (
-        <div style={{ maxWidth: 480 }}>
-          {/* Avatar + name */}
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-              <div style={{ width: 60, height: 60, borderRadius: "50%", background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 22, flexShrink: 0 }}>
-                {currentUser?.name?.charAt(0) ?? "?"}
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: T.fg }}>{currentUser?.name ?? "Loading…"}</div>
-                <div style={{ fontSize: 12, color: T.fg3, marginTop: 3 }}>{role} · {currentUser?.phone}</div>
-              </div>
-            </div>
-            <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.fg2, marginBottom: 10 }}>Account details</div>
-              {[["Phone", currentUser?.phone ?? "—"], ["Role", role], ["Shares", String(currentUser?.shares ?? "—")]].map(([k, v]) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 12, color: T.fg3 }}>{k}</div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{v}</div>
+        {/* Content */}
+        <div className="settings-content">
+          {settingsTab === "chama" && (
+            <div className="card">
+              <div className="card-hd"><span className="card-title">Chama Details</span></div>
+              {[["Name","Kaabazim Self Help Group"],["Meeting Day","Monthly (Last Thursday)"],["Active Members", String(memberCount ?? "—")],["Share Value","KES 5,000 / month"],["Year Founded","2023"]].map(([k,v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border2)" }}>
+                  <div style={{ fontSize: 12, color: "var(--fg2)" }}>{k}</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: "var(--fg)" }}>{v}</div>
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button className="btn" onClick={() => setShowPinModal(true)} style={{ background: T.sf2, color: T.fg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "13px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              🔑 Change PIN
-            </button>
-            <button className="btn" onClick={onLogout} style={{ background: T.fg, color: "#fff", border: "none", borderRadius: 12, padding: "13px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              Sign Out
-            </button>
-          </div>
-        </div>
-      )}
+          )}
 
-      {activeTab === "chama" && (
-        <div style={{ maxWidth: 480 }}>
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.fg, marginBottom: 16 }}>Kaabazim Self Help Group</div>
-            {[
-              ["Name",         "Kaabazim Self Help Group"],
-              ["Meeting Day",  "Last Thursday of Month"],
-              ["Active Members", String(memberCount ?? "—")],
-              ["Share Value",  "KES 5,000 / month"],
-              ["Late Fine",    "10% of contribution"],
-              ["Absence Fine", "KES 500"],
-              ["Lateness Fine","KES 200"],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 12, color: T.fg3 }}>{k}</div>
-                <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{v}</div>
+          {settingsTab === "profile" && (
+            <div className="card">
+              <div className="card-hd"><span className="card-title">My Profile</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                <div className="uav" style={{ width: 50, height: 50, fontSize: 18 }}>{currentUser?.name?.charAt(0) ?? "?"}</div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>{currentUser?.name ?? "Loading…"}</div>
+                  <div style={{ fontSize: 12, color: "var(--fg2)", marginTop: 2 }}>{role} · {currentUser?.phone}</div>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <button className="btn btn-o" style={{ width: "100%", marginBottom: 10, justifyContent: "center" }} onClick={() => setShowPinModal(true)}>
+                🔑 Change PIN
+              </button>
+              <button className="btn btn-p" style={{ width: "100%", justifyContent: "center" }} onClick={onLogout}>
+                Sign Out
+              </button>
+            </div>
+          )}
 
-      {activeTab === "system" && (
-        <div style={{ maxWidth: 480 }}>
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.fg, marginBottom: 16 }}>System Info</div>
-            {[
-              ["Backend", "Railway (Node.js + SQLite)"],
-              ["Frontend", "Vercel (React + Vite)"],
-              ["Version", "2.0"],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 12, color: T.fg3 }}>{k}</div>
-                <div style={{ fontSize: 12, fontWeight: 500, color: T.fg }}>{v}</div>
+          {settingsTab === "system" && (
+            <div className="card">
+              <div className="card-hd"><span className="card-title">System</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border2)" }}>
+                <div style={{ fontSize: 12, color: "var(--fg2)" }}>Backend</div>
+                <span className="pill pill-g">Connected · Railway</span>
               </div>
-            ))}
-          </div>
-          <div style={{ background: T.grnL, border: `1px solid #86efac`, borderRadius: 12, padding: 14, marginTop: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: T.green, marginBottom: 2 }}>API Connected</div>
-            <div style={{ fontSize: 11, color: T.fg3 }}>Backend running on Railway · chamaflow-api-production.up.railway.app</div>
-          </div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border2)" }}>
+                <div style={{ fontSize: 12, color: "var(--fg2)" }}>Frontend</div>
+                <span className="pill pill-g">Vercel</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0" }}>
+                <div style={{ fontSize: 12, color: "var(--fg2)" }}>Database</div>
+                <span className="pill pill-b">SQLite</span>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {showPinModal && <SettingsPinModal onClose={() => setShowPinModal(false)} />}
     </div>
@@ -3311,6 +3215,270 @@ function EditMemberModal({ member, onClose, onSave }) {
         <button className="btn" onClick={handleSubmit} disabled={saving || !changed} style={{ width: "100%", background: changed && !saving ? "#1A1A1A" : "#ECEAE4", color: changed && !saving ? "#F7F6F2" : "#BBB", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.2s" }}>
           {saving ? <><Spinner /> Saving…</> : changed ? "Save Changes" : "No Changes"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Capital Sheet Page ────────────────────────────────────────────────────────
+
+function CapitalSheetPage({ members, showToast, onRefresh }) {
+  const [deposits, setDeposits] = useState({});
+  const [saved,    setSaved]    = useState({});
+  const [saving,   setSaving]   = useState(false);
+  const [balances, setBalances] = useState([]);
+  const [loadingB, setLoadingB] = useState(true);
+
+  useEffect(() => {
+    const init = {};
+    members.forEach(m => { init[m.id] = m.initial_deposit != null ? String(m.initial_deposit) : "0"; });
+    setDeposits(init);
+  }, [members]);
+
+  useEffect(() => {
+    setLoadingB(true);
+    api.getMemberBalances()
+      .then(setBalances)
+      .catch(() => {})
+      .finally(() => setLoadingB(false));
+  }, [members]);
+
+  const handleChange = (id, val) => {
+    setDeposits(p => ({ ...p, [id]: val }));
+    setSaved(p => ({ ...p, [id]: false }));
+  };
+
+  const handleSaveAll = async () => {
+    setSaving(true);
+    const rows = Object.entries(deposits).map(([id, v]) => ({ id: Number(id), amount: parseFloat(v) || 0 }));
+    try {
+      await api.bulkSetInitialDeposits(rows);
+      const next = {};
+      rows.forEach(r => { next[r.id] = true; });
+      setSaved(next);
+      showToast("Initial deposits saved", "success");
+      onRefresh();
+    } catch (e) {
+      showToast(e.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fmt = v => "KES " + Number(v || 0).toLocaleString();
+  const totalDeposit = Object.values(deposits).reduce((a, v) => a + (parseFloat(v) || 0), 0);
+  const activeMembers = members.filter(m => m.active);
+
+  return (
+    <div className="fade-up">
+      <div className="topbar">
+        <input className="search-box" placeholder="Search members, contributions…" readOnly />
+        <div className="tbr">
+          <button className="btn btn-p btn-sm" onClick={handleSaveAll} disabled={saving}>
+            {saving ? "Saving…" : "Save All"}
+          </button>
+        </div>
+      </div>
+
+      <div className="page-h">Capital Sheet</div>
+      <div className="page-sub">Record each member's initial deposit as starting capital</div>
+
+      <div className="cs-banner">
+        <span>💡</span>
+        <span>Enter each member's starting capital below — the amount they deposited before monthly contributions began. Click <b>Save All</b> when done.</span>
+      </div>
+
+      <div className="metrics" style={{ marginBottom: 20 }}>
+        <div className="metric">
+          <div className="metric-lbl">Total Starting Capital</div>
+          <div className="metric-val">{fmt(totalDeposit)}</div>
+          <div className="metric-sub">{activeMembers.length} members</div>
+        </div>
+        <div className="metric">
+          <div className="metric-lbl">Avg per Member</div>
+          <div className="metric-val">{fmt(activeMembers.length ? totalDeposit / activeMembers.length : 0)}</div>
+          <div className="metric-sub">initial deposit</div>
+        </div>
+        <div className="metric">
+          <div className="metric-lbl">Total Net Balance</div>
+          <div className="metric-val">{loadingB ? "…" : fmt(balances.reduce((a, b) => a + b.net_balance, 0))}</div>
+          <div className="metric-sub">capital + contributions</div>
+        </div>
+        <div className="metric">
+          <div className="metric-lbl">Members Set</div>
+          <div className="metric-val">{Object.values(deposits).filter(v => parseFloat(v) > 0).length}</div>
+          <div className="metric-sub">of {activeMembers.length} active</div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <table className="capital-sheet">
+          <thead>
+            <tr>
+              <th style={{ paddingLeft: 20 }}>Member</th>
+              <th>Role</th>
+              <th>Shares</th>
+              <th>Initial Deposit (KES)</th>
+              <th>Net Balance</th>
+              <th style={{ paddingRight: 20 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {activeMembers.map((m, i) => {
+              const bal = balances.find(b => b.id === m.id);
+              const initials = m.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+              const cls = AVATAR_CLASSES[i % AVATAR_CLASSES.length];
+              return (
+                <tr key={m.id}>
+                  <td style={{ paddingLeft: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div className={`cs-av ${cls}`}>{initials}</div>
+                      <div>
+                        <div className="cs-name">{m.name}</div>
+                        <div className="cs-role">{m.phone}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span className="pill pill-b">{m.role}</span></td>
+                  <td style={{ color: "var(--fg2)", fontSize: 13 }}>{m.shares}</td>
+                  <td>
+                    <input
+                      className="cs-input"
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={deposits[m.id] ?? "0"}
+                      onChange={e => handleChange(m.id, e.target.value)}
+                    />
+                  </td>
+                  <td style={{ fontWeight: 600, fontSize: 14, color: bal ? (bal.net_balance >= 0 ? "var(--green)" : "var(--red)") : "var(--fg3)" }}>
+                    {bal ? fmt(bal.net_balance) : "—"}
+                  </td>
+                  <td style={{ paddingRight: 20 }}>
+                    {saved[m.id] && <span className="cs-saved">✓ saved</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="cs-total">
+              <td style={{ paddingLeft: 20, paddingTop: 12, paddingBottom: 12 }} colSpan={3}><b>Total</b></td>
+              <td style={{ fontWeight: 700, fontSize: 15 }}>{fmt(totalDeposit)}</td>
+              <td style={{ fontWeight: 700, fontSize: 15, color: "var(--green)" }}>
+                {loadingB ? "…" : fmt(balances.reduce((a, b) => a + b.net_balance, 0))}
+              </td>
+              <td style={{ paddingRight: 20 }}></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── My Balance Page ───────────────────────────────────────────────────────────
+
+function MyBalancePage({ currentUser, showToast }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.getMyBalance()
+      .then(setData)
+      .catch(e => showToast(e.message, "error"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const fmt = v => "KES " + Number(v || 0).toLocaleString();
+  const isDeduction = t => ["Fine", "Lateness"].includes(t);
+  const typeLabel = t => ({ Contribution: "Contribution", Fine: "Fine", Lateness: "Lateness Fine" })[t] || t;
+
+  if (loading) return (
+    <div style={{ padding: 20 }}>
+      <Skeleton h={160} r={12} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginTop: 16 }}>
+        {[1,2,3].map(k => <Skeleton key={k} h={90} r={12} />)}
+      </div>
+    </div>
+  );
+
+  if (!data) return null;
+
+  return (
+    <div className="fade-up">
+      <div className="topbar">
+        <input className="search-box" placeholder="Search transactions…" readOnly />
+        <div className="tbr">
+          <span style={{ fontSize: 13, color: "var(--fg3)" }}>Updated just now</span>
+        </div>
+      </div>
+
+      <div className="page-h">My Balance</div>
+      <div className="page-sub">{data.name} · {data.role}</div>
+
+      <div className="balance-hero">
+        <div className="balance-hero-label">Net Balance</div>
+        <div className="balance-hero-amount">{fmt(data.net_balance)}</div>
+        <div className="balance-hero-sub">
+          Initial deposit: KES {Number(data.initial_deposit || 0).toLocaleString()}
+          &nbsp;·&nbsp;{data.shares} share{data.shares !== 1 ? "s" : ""}
+        </div>
+      </div>
+
+      <div className="balance-cards">
+        <div className="balance-card green">
+          <div className="balance-card-label">Confirmed Contributions</div>
+          <div className="balance-card-val">{fmt(data.confirmed_contributions)}</div>
+          <div className="balance-card-sub">paid &amp; confirmed</div>
+        </div>
+        <div className="balance-card red">
+          <div className="balance-card-label">Fines &amp; Deductions</div>
+          <div className="balance-card-val">{fmt(data.total_deductions)}</div>
+          <div className="balance-card-sub">confirmed deductions</div>
+        </div>
+        <div className="balance-card blue">
+          <div className="balance-card-label">Pending</div>
+          <div className="balance-card-val">{fmt(data.pending_contributions)}</div>
+          <div className="balance-card-sub">awaiting confirmation</div>
+        </div>
+      </div>
+
+      <div className="balance-hist">
+        <div className="balance-hist-head">Transaction History</div>
+        {data.transactions.length === 0 ? (
+          <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--fg3)", fontSize: 13 }}>No transactions yet.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th>Type</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th style={{ textAlign: "right", paddingRight: 20 }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.transactions.map((t, i) => (
+                <tr key={i}>
+                  <td>{t.month}</td>
+                  <td>{typeLabel(t.type)}</td>
+                  <td style={{ color: "var(--fg3)" }}>{t.method}</td>
+                  <td>
+                    <span className={`pill ${t.status === "Confirmed" ? "pill-g" : t.status === "Pending" ? "pill-a" : "pill-r"}`}>
+                      {t.status}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "right", paddingRight: 20 }} className={isDeduction(t.type) ? "amt-neg" : (t.status === "Confirmed" ? "amt-pos" : "")}>
+                    {isDeduction(t.type) ? "−" : "+"}{fmt(t.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

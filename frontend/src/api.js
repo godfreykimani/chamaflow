@@ -68,6 +68,16 @@ export const updateMember = (id, body) =>
 export const deactivateMember = (id) =>
   request(`/members/${id}`, { method: "DELETE" });
 
+export const setInitialDeposit = (id, amount) =>
+  request(`/members/${id}/initial-deposit`, { method: "PUT", body: JSON.stringify({ amount }) });
+
+export const bulkSetInitialDeposits = (rows) =>
+  request("/members/initial-deposits/bulk", { method: "PUT", body: JSON.stringify(rows) });
+
+export const getMemberBalances = () => request("/members/balances");
+
+export const getMyBalance = () => request("/members/me/balance");
+
 // ─── Contributions ────────────────────────────────────────────────────────────
 
 export const getContributions = (params = {}) => {

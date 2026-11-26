@@ -1,0 +1,35 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "/Users/user/Claude Projects/chamaflow/frontend/src/LoginPage.jsx"
+        ],
+        "createdAt": "2026-11-26T16:09:13.400Z",
+        "reason": "Inter is the app's defined design-system sans-serif, set by the user's own allpages mockup and used as a named token throughout the codebase; not a reflexive AI choice"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "/Users/user/Claude Projects/chamaflow/frontend/index.html"
+        ],
+        "createdAt": "2026-11-26T16:09:13.422Z",
+        "reason": "user explicitly requested this palette via their allpages mockup — the warm cream bg (#f2efe9) is a deliberate brand choice, not a default"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "/Users/user/Claude Projects/chamaflow/frontend/src/app.css"
+        ],
+        "createdAt": "2026-11-26T16:11:28.941Z",
+        "reason": "API offline banner uses border-left as a standard alert/notification accent, not a navigation tab pattern — false positive"
+      }
+    ]
+  }
+}

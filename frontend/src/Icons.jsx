@@ -50,6 +50,10 @@ export function Icon({ name, size = 18, color = "currentColor" }) {
       return <svg {...props}><polyline points="23 4 23 10 17 10" stroke="#2563eb"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>;
     case "check":
       return <svg {...props}><polyline points="20 6 9 17 4 12" stroke="#2563eb"/></svg>;
+    case "wallet":
+      return <svg {...props}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/><path d="M2 10h20"/></svg>;
+    case "bank":
+      return <svg {...props}><rect x="3" y="10" width="18" height="9" rx="1"/><path d="M3 10l9-7 9 7"/><line x1="6" y1="10" x2="6" y2="19"/><line x1="10" y1="10" x2="10" y2="19"/><line x1="14" y1="10" x2="14" y2="19"/><line x1="18" y1="10" x2="18" y2="19"/></svg>;
     default:
       return <svg {...props}><circle cx="12" cy="12" r="9"/></svg>;
   }

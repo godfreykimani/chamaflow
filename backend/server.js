@@ -137,6 +137,8 @@ db.exec(`
 // Add transcript column if meetings table was created before this feature
 try { db.exec("ALTER TABLE meetings ADD COLUMN transcript TEXT"); } catch {}
 try { db.exec("ALTER TABLE meetings ADD COLUMN ai_summary TEXT"); } catch {}
+// Add initial_deposit column for starting capital tracking
+try { db.exec("ALTER TABLE members ADD COLUMN initial_deposit REAL NOT NULL DEFAULT 0"); } catch {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS meeting_endorsements (
@@ -407,9 +409,39 @@ app.use("/api", requireAuth);
 
 app.get("/api/members", (req, res) => {
   const { active } = req.query;
-  let sql="SELECT id,name,shares,role,active,phone,email,must_change_pin,created_at FROM members", args=[];
+  let sql="SELECT id,name,shares,role,active,phone,email,initial_deposit,must_change_pin,created_at FROM members", args=[];
   if (active!==undefined) { sql+=" WHERE active=?"; args.push(active==="true"||active==="1"?1:0); }
   ok(res, db.prepare(sql+" ORDER BY name").all(...args));
+});
+
+// Balance for every member (admin view) — must be before /:id wildcard
+app.get("/api/members/balances", requireAuth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      m.id, m.name, m.role, m.shares, m.active, m.phone, m.initial_deposit,
+      COALESCE(SUM(CASE WHEN c.type='Contribution' AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS confirmed_contributions,
+      COALESCE(SUM(CASE WHEN c.type IN ('Fine','Lateness') AND c.status='Confirmed' THEN c.amount ELSE 0 END),0) AS total_deductions,
+      COALESCE(SUM(CASE WHEN c.status='Pending' AND c.type='Contribution' THEN c.amount ELSE 0 END),0) AS pending_contributions
+    FROM members m
+    LEFT JOIN contributions c ON c.member_id = m.id
+    WHERE m.active=1
+    GROUP BY m.id
+    ORDER BY m.name
+  `).all();
+  ok(res, rows.map(b => ({ ...b, net_balance: b.initial_deposit + b.confirmed_contributions - b.total_deductions })));
+});
+
+// Balance for the logged-in member (self view) — must be before /:id wildcard
+app.get("/api/members/me/balance", requireAuth, (req, res) => {
+  const id = req.user.id;
+  const m2 = db.prepare("SELECT id,name,role,shares,phone,email,initial_deposit FROM members WHERE id=?").get(id);
+  if (!m2) return notFound(res, "Member");
+  const txns = db.prepare(`SELECT type, month, amount, status, method, created_at FROM contributions WHERE member_id=? ORDER BY created_at DESC`).all(id);
+  const confirmed_contributions = txns.filter(r=>r.type==='Contribution'&&r.status==='Confirmed').reduce((a,r)=>a+r.amount,0);
+  const total_deductions        = txns.filter(r=>['Fine','Lateness'].includes(r.type)&&r.status==='Confirmed').reduce((a,r)=>a+r.amount,0);
+  const pending_contributions   = txns.filter(r=>r.type==='Contribution'&&r.status==='Pending').reduce((a,r)=>a+r.amount,0);
+  ok(res, { ...m2, confirmed_contributions, total_deductions, pending_contributions,
+    net_balance: m2.initial_deposit + confirmed_contributions - total_deductions, transactions: txns });
 });
 
 app.get("/api/members/:id", (req, res) => {
@@ -447,6 +479,28 @@ app.delete("/api/members/:id", requireAdmin, (req, res) => {
   db.prepare("UPDATE members SET active=0 WHERE id=?").run(req.params.id);
   audit(req.user.id,"DEACTIVATE_MEMBER",`member:${req.params.id}`,{name:m.name});
   ok(res,{message:"Member deactivated"});
+});
+
+// Initial deposit for a member
+app.put("/api/members/:id/initial-deposit", requireAdmin, (req, res) => {
+  const { amount } = req.body;
+  if (amount === undefined || isNaN(Number(amount)) || Number(amount) < 0) return fail(res, "Valid amount required");
+  const m = db.prepare("SELECT id,name FROM members WHERE id=?").get(req.params.id);
+  if (!m) return notFound(res, "Member");
+  db.prepare("UPDATE members SET initial_deposit=? WHERE id=?").run(Number(amount), req.params.id);
+  audit(req.user.id, "SET_INITIAL_DEPOSIT", `member:${req.params.id}`, { amount: Number(amount) });
+  ok(res, { id: m.id, initial_deposit: Number(amount) });
+});
+
+// Bulk-set initial deposits: body = [{ id, amount }, ...]
+app.put("/api/members/initial-deposits/bulk", requireAdmin, (req, res) => {
+  const rows = req.body;
+  if (!Array.isArray(rows)) return fail(res, "Array required");
+  const stmt = db.prepare("UPDATE members SET initial_deposit=? WHERE id=?");
+  const run  = db.transaction(() => rows.forEach(r => stmt.run(Number(r.amount)||0, r.id)));
+  run();
+  audit(req.user.id, "BULK_SET_INITIAL_DEPOSITS", null, { count: rows.length });
+  ok(res, { updated: rows.length });
 });
 
 // ─── CONTRIBUTIONS ────────────────────────────────────────────────────────────
