@@ -475,6 +475,21 @@ function ChamaFlow({ onLogout }) {
     }
   };
 
+  const [deletingContribId, setDeletingContribId] = useState(null);
+  const handleDeleteContrib = async (id) => {
+    if (!window.confirm("Delete this record? This cannot be undone.")) return;
+    setDeletingContribId(id);
+    try {
+      await api.deleteContribution(id);
+      setContributions(prev => prev.filter(c => c.id !== id));
+      showToast("Record deleted");
+    } catch (e) {
+      showToast("Failed to delete", "error");
+    } finally {
+      setDeletingContribId(null);
+    }
+  };
+
   const selectStyle = {
     padding: "9px 14px", borderRadius: 12, border: "1px solid #ECEAE4",
     background: "#fff", fontSize: 12, color: "#1A1A1A", fontFamily: "inherit",
@@ -587,7 +602,7 @@ function ChamaFlow({ onLogout }) {
 
           <div className={viewMode === "desktop" ? "main" : ""} style={viewMode === "mobile" ? { padding: 0 } : {}}>
             {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} showToast={showToast} />}
-            {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} setPage={setPage} />}
+            {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} onDelete={handleDeleteContrib} deletingContribId={deletingContribId} selectStyle={selectStyle} onRefresh={loadContributions} setPage={setPage} />}
             {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
             {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
             {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} showToast={showToast} onRefresh={loadMembers} />}
@@ -901,7 +916,7 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
 
 // ── Contributions Page ────────────────────────────────────────────────────────
 
-function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh, setPage }) {
+function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, onDelete, deletingContribId, selectStyle, onRefresh, setPage }) {
   const totalShares      = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
   const totalFines       = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
   const totalLateness    = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
@@ -1018,12 +1033,19 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
                       <span className={`pill ${c.status === "Confirmed" ? "pill-g" : "pill-a"}`}>{c.status}</span>
                     </td>
                     {isAdmin && (
-                      <td>
+                      <td style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
                         {c.status === "Pending" && (
                           <button className="btn btn-p btn-sm" onClick={() => onConfirm(c.id)} disabled={confirmingId === c.id} style={{ padding: "4px 10px", fontSize: 11 }}>
                             {confirmingId === c.id ? "…" : "Confirm"}
                           </button>
                         )}
+                        <button
+                          onClick={() => onDelete(c.id)}
+                          disabled={deletingContribId === c.id}
+                          style={{ padding: "4px 8px", fontSize: 11, background: "none", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 6, cursor: "pointer", lineHeight: 1, opacity: deletingContribId === c.id ? 0.5 : 1 }}
+                        >
+                          {deletingContribId === c.id ? "…" : "✕"}
+                        </button>
                       </td>
                     )}
                   </tr>
