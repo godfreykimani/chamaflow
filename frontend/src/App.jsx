@@ -587,7 +587,7 @@ function ChamaFlow({ onLogout }) {
 
           <div className={viewMode === "desktop" ? "main" : ""} style={viewMode === "mobile" ? { padding: 0 } : {}}>
             {page === "dashboard"     && <DashboardPage dashboard={dashboard} loading={loading.dashboard} member={currentUser} role={role} setPage={setPage} viewMode={viewMode} onRefresh={loadDashboard} members={members} />}
-            {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} />}
+            {page === "contributions" && <ContributionsPage contributions={contributions} members={members} isAdmin={isAdmin} loading={loading.contributions} filterYear={filterYear} setFilterYear={setFilterYear} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterMember={filterMember} setFilterMember={setFilterMember} filterType={filterType} setFilterType={setFilterType} onConfirm={handleConfirmContrib} confirmingId={confirmingId} selectStyle={selectStyle} onRefresh={loadContributions} setPage={setPage} />}
             {page === "meetings"      && <MeetingsPage meetings={meetings} loading={loading.meetings} isAdmin={isAdmin} currentUser={currentUser} setSelectedMeeting={setSelectedMeeting} setTranscriptMeeting={setTranscriptMeeting} showToast={showToast} onRefresh={loadMeetings} viewMode={viewMode} />}
             {page === "record"  && isAdmin && <RecordPage members={members} summary={monthlySummary} loading={loading.summary || loading.record} recordForm={recordForm} setRecordForm={setRecordForm} onSubmit={handleRecordContrib} onBulkImport={handleBulkImport} selectStyle={selectStyle} />}
             {page === "members" && isAdmin && <MembersPage members={members} loading={loading.members} onAdd={() => setAddMemberModal(true)} onToggle={handleToggleActive} onEdit={m => setEditMember(m)} viewMode={viewMode} showToast={showToast} onRefresh={loadMembers} />}
@@ -627,6 +627,11 @@ const AVATAR_CLASSES = ["a0","a1","a2","a3","a4","a5","a6","a7","a8","a9","a10",
 
 function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, onRefresh, members }) {
   const isDesktop = viewMode === "desktop";
+  const [myBal, setMyBal] = useState(null);
+
+  useEffect(() => {
+    api.getMyBalance().then(setMyBal).catch(() => {});
+  }, [member?.id]);
 
   if (loading) return (
     <div style={{ padding: isDesktop ? 0 : 20 }}>
@@ -711,6 +716,39 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
           </div>
         ))}
       </div>
+
+      {/* My Balance card */}
+      {myBal && (
+        <div className="card" style={{ marginBottom: 16, background: "var(--fg)", color: "#fff", borderColor: "transparent" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase", opacity: .65, marginBottom: 4 }}>My Balance</div>
+              <div style={{ fontFamily: "var(--serif)", fontSize: 36, fontWeight: 400, lineHeight: 1 }}>
+                {fmt(myBal.net_balance)}
+              </div>
+              <div style={{ fontSize: 12, opacity: .6, marginTop: 4 }}>{member?.shares} share{member?.shares !== 1 ? "s" : ""} · {member?.role}</div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              {[
+                { lbl: "Contributions", val: myBal.confirmed_contributions, color: "#4ade80" },
+                { lbl: "Deductions",    val: myBal.total_deductions,         color: "#f87171" },
+                { lbl: "Pending",       val: myBal.pending_contributions,    color: "#fbbf24" },
+              ].map(({ lbl, val, color }) => (
+                <div key={lbl} style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, opacity: .6, letterSpacing: ".05em", textTransform: "uppercase" }}>{lbl}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color, marginTop: 2 }}>{fmt(val)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+            <button className="btn btn-sm" onClick={() => setPage("mybalance")}
+              style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)" }}>
+              View details →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Member grid */}
       <div className="sec-row">
@@ -807,7 +845,7 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
 
 // ── Contributions Page ────────────────────────────────────────────────────────
 
-function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh }) {
+function ContributionsPage({ contributions, members, isAdmin, loading, filterYear, setFilterYear, filterStatus, setFilterStatus, filterMember, setFilterMember, filterType, setFilterType, onConfirm, confirmingId, selectStyle, onRefresh, setPage }) {
   const totalShares      = members.filter(m => m.active).reduce((s,m) => s + (m.shares || 1), 0);
   const totalFines       = contributions.filter(c => c.type === "Fine").reduce((s,c) => s+c.amount, 0);
   const totalLateness    = contributions.filter(c => c.type === "Lateness").reduce((s,c) => s+c.amount, 0);
@@ -821,7 +859,7 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
         <div className="page-h" style={{ marginBottom: 0 }}>Contributions</div>
         <div className="tbr">
           <button className="btn btn-o btn-sm" onClick={onRefresh} disabled={loading}>↻ Refresh</button>
-          {isAdmin && <button className="btn btn-p btn-sm" onClick={() => {}}>+ Record</button>}
+          {isAdmin && <button className="btn btn-p btn-sm" onClick={() => setPage("record")}>+ Record</button>}
         </div>
       </div>
       <div className="page-sub">
@@ -3223,17 +3261,27 @@ function EditMemberModal({ member, onClose, onSave }) {
 // ── Capital Sheet Page ────────────────────────────────────────────────────────
 
 function CapitalSheetPage({ members, showToast, onRefresh }) {
-  const [deposits, setDeposits] = useState({});
-  const [saved,    setSaved]    = useState({});
-  const [saving,   setSaving]   = useState(false);
-  const [balances, setBalances] = useState([]);
-  const [loadingB, setLoadingB] = useState(true);
+  const [deposits,     setDeposits]     = useState({});
+  const [saved,        setSaved]        = useState({});
+  const [saving,       setSaving]       = useState(false);
+  const [balances,     setBalances]     = useState([]);
+  const [loadingB,     setLoadingB]     = useState(true);
+  const [perShare,     setPerShare]     = useState("");
 
   useEffect(() => {
     const init = {};
     members.forEach(m => { init[m.id] = m.initial_deposit != null ? String(m.initial_deposit) : "0"; });
     setDeposits(init);
   }, [members]);
+
+  const applyPerShare = (rate) => {
+    const r = parseFloat(rate) || 0;
+    if (!r) return;
+    const next = {};
+    members.filter(m => m.active).forEach(m => { next[m.id] = String(r * (m.shares || 1)); });
+    setDeposits(p => ({ ...p, ...next }));
+    setSaved({});
+  };
 
   useEffect(() => {
     setLoadingB(true);
@@ -3283,9 +3331,35 @@ function CapitalSheetPage({ members, showToast, onRefresh }) {
       <div className="page-h">Capital Sheet</div>
       <div className="page-sub">Record each member's initial deposit as starting capital</div>
 
-      <div className="cs-banner">
-        <span>💡</span>
-        <span>Enter each member's starting capital below — the amount they deposited before monthly contributions began. Click <b>Save All</b> when done.</span>
+      <div className="cs-banner" style={{ flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span>💡</span>
+          <span>Enter each member's starting capital, or set a <b>per-share rate</b> to auto-fill all deposits.</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap" }}>KES per share:</label>
+          <input
+            className="cs-input"
+            type="number"
+            min="0"
+            step="500"
+            placeholder="e.g. 5000"
+            value={perShare}
+            onChange={e => setPerShare(e.target.value)}
+            style={{ width: 120 }}
+          />
+          <button
+            className="btn btn-o btn-sm"
+            onClick={() => applyPerShare(perShare)}
+            disabled={!parseFloat(perShare)}
+            style={{ whiteSpace: "nowrap" }}
+          >
+            Apply to All
+          </button>
+          <span style={{ fontSize: 11, color: "var(--fg3)" }}>
+            {parseFloat(perShare) ? `(${members.filter(m=>m.active).map(m=>`${m.shares}sh → KES ${(parseFloat(perShare)*(m.shares||1)).toLocaleString()}`).slice(0,2).join(", ")}…)` : ""}
+          </span>
+        </div>
       </div>
 
       <div className="metrics" style={{ marginBottom: 20 }}>
@@ -3363,7 +3437,8 @@ function CapitalSheetPage({ members, showToast, onRefresh }) {
           </tbody>
           <tfoot>
             <tr className="cs-total">
-              <td style={{ paddingLeft: 20, paddingTop: 12, paddingBottom: 12 }} colSpan={3}><b>Total</b></td>
+              <td style={{ paddingLeft: 20, paddingTop: 12, paddingBottom: 12 }} colSpan={2}><b>Total</b></td>
+              <td style={{ fontWeight: 700, fontSize: 13 }}>{activeMembers.reduce((a,m)=>a+(m.shares||1),0)} shares</td>
               <td style={{ fontWeight: 700, fontSize: 15 }}>{fmt(totalDeposit)}</td>
               <td style={{ fontWeight: 700, fontSize: 15, color: "var(--green)" }}>
                 {loadingB ? "…" : fmt(balances.reduce((a, b) => a + b.net_balance, 0))}
