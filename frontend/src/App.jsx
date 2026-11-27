@@ -481,6 +481,7 @@ function ChamaFlow({ onLogout }) {
     if (!deleteContribTarget) return;
     const { id } = deleteContribTarget;
     setDeletingContribId(id);
+    navigator.vibrate?.(10);
     try {
       await api.deleteContribution(id);
       setContributions(prev => prev.filter(c => c.id !== id));
@@ -631,8 +632,13 @@ function ChamaFlow({ onLogout }) {
 
       {/* Toast */}
       {toast && (
-        <div className="toast-in" style={{ position: "fixed", bottom: 100, right: 20, zIndex: 9999, background: toast.type === "success" ? "var(--fg)" : "var(--red)", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 13, fontWeight: 500, boxShadow: "0 8px 28px rgba(0,0,0,0.25)", maxWidth: 300 }}>
-          {toast.type === "success" ? "✓ " : "✗ "}{toast.msg}
+        <div className="toast-in" style={{ position: "fixed", bottom: 100, right: 20, zIndex: 9999, background: toast.type === "success" ? "var(--fg)" : "var(--red)", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 13, fontWeight: 500, boxShadow: "0 8px 28px rgba(0,0,0,0.25)", maxWidth: 300, display: "flex", alignItems: "center", gap: 8 }}>
+          {toast.type === "success" ? (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="2,7 5.5,10.5 12,3"/></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}><path d="M2 2l10 10M12 2L2 12"/></svg>
+          )}
+          {toast.msg}
         </div>
       )}
     </div>
@@ -1046,9 +1052,12 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
                         <button
                           onClick={() => onDelete(c)}
                           disabled={deletingContribId === c.id}
-                          style={{ padding: "4px 8px", fontSize: 11, background: "none", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 6, cursor: "pointer", lineHeight: 1, opacity: deletingContribId === c.id ? 0.5 : 1 }}
+                          aria-label="Delete contribution"
+                          style={{ minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 8, cursor: "pointer", opacity: deletingContribId === c.id ? 0.5 : 1, padding: "0 10px" }}
                         >
-                          {deletingContribId === c.id ? "…" : "✕"}
+                          {deletingContribId === c.id ? "…" : (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg>
+                          )}
                         </button>
                       </td>
                     )}
@@ -1779,87 +1788,83 @@ function EndorsementModal({ meeting, currentUser, onClose, onEndorse }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div className="fade-up modal-card" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 420, padding: "24px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Endorse Meeting</div>
-            <div style={{ fontSize: 11, color: "#999", marginTop: 3 }}>{meeting.date} · {meeting.location}</div>
+            <div className="modal-title">Endorse Meeting</div>
+            <div className="modal-sub">{meeting.date} · {meeting.location}</div>
           </div>
-          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <ModalCloseBtn onClick={onClose} />
         </div>
 
-        {/* Current endorsements */}
-        <div style={{ background: "#F7F6F2", borderRadius: 14, padding: 14, marginBottom: 20 }}>
-          <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 10 }}>CURRENT ENDORSEMENTS</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: meeting.proposer_name ? "#E8F5E9" : "#F0EEE8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
-                {meeting.proposer_name ? "✓" : "○"}
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#1A1A1A" }}>Proposed by</div>
-                <div style={{ fontSize: 11, color: meeting.proposer_name ? "#2E7D32" : "#CCC" }}>
-                  {meeting.proposer_name || "Not yet proposed"}
+        <div className="modal-body">
+          {/* Current endorsements */}
+          <div style={{ background: "var(--sf2)", borderRadius: 14, padding: 14, marginBottom: 20 }}>
+            <div style={{ fontSize: 10, color: "var(--fg3)", letterSpacing: 0.5, marginBottom: 10 }}>CURRENT ENDORSEMENTS</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                { name: meeting.proposer_name, label: "Proposed by", checkedColor: "var(--grn-l)", checkStroke: "var(--green)", textColor: "var(--green)" },
+                { name: meeting.seconder_name, label: "Seconded by", checkedColor: "var(--acc-l)", checkStroke: "var(--accent)", textColor: "var(--accent)" },
+              ].map(({ name, label, checkedColor, checkStroke, textColor }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: name ? checkedColor : "var(--sf3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {name ? (
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={checkStroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,6.5 5,10 11.5,3"/></svg>
+                    ) : (
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--fg3)" strokeWidth="1.5"><circle cx="5" cy="5" r="4"/></svg>
+                    )}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg)" }}>{label}</div>
+                    <div style={{ fontSize: 11, color: name ? textColor : "var(--fg3)" }}>{name || "Not yet"}</div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: meeting.seconder_name ? "#E3F2FD" : "#F0EEE8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
-                {meeting.seconder_name ? "✓" : "○"}
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#1A1A1A" }}>Seconded by</div>
-                <div style={{ fontSize: 11, color: meeting.seconder_name ? "#1565C0" : "#CCC" }}>
-                  {meeting.seconder_name || "Not yet seconded"}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
+
+          {/* Radio choices */}
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)", marginBottom: 12 }}>Your endorsement:</div>
+          {[
+            { value: "propose", label: "I propose the meeting minutes", available: proposeSlotFree, color: "var(--green)", bg: "var(--grn-l)" },
+            { value: "second",  label: "I second the meeting minutes",  available: secondSlotFree,  color: "var(--accent)", bg: "var(--acc-l)" },
+          ].map(opt => (
+            <div
+              key={opt.value}
+              onClick={() => opt.available && setChoice(opt.value)}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "14px 16px", borderRadius: 14, marginBottom: 10,
+                border: `2px solid ${choice === opt.value ? opt.color : "var(--border)"}`,
+                background: choice === opt.value ? opt.bg : opt.available ? "var(--surface)" : "var(--sf2)",
+                cursor: opt.available ? "pointer" : "not-allowed",
+                opacity: opt.available ? 1 : 0.5,
+                transition: "all 0.15s",
+              }}
+            >
+              <div style={{
+                width: 20, height: 20, borderRadius: "50%",
+                border: `2px solid ${choice === opt.value ? opt.color : "var(--border)"}`,
+                background: choice === opt.value ? opt.color : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s",
+              }}>
+                {choice === opt.value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: opt.available ? "var(--fg)" : "var(--fg3)" }}>{opt.label}</div>
+                {!opt.available && <div style={{ fontSize: 10, color: "var(--fg3)", marginTop: 1 }}>Slot already taken</div>}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Radio choices */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: "#1A1A1A", marginBottom: 12 }}>Your endorsement:</div>
-        {[
-          { value: "propose", label: "I propose the meeting minutes", available: proposeSlotFree, color: "#2E7D32", bg: "#E8F5E9" },
-          { value: "second",  label: "I second the meeting minutes",  available: secondSlotFree,  color: "#1565C0", bg: "#E3F2FD" },
-        ].map(opt => (
-          <div
-            key={opt.value}
-            onClick={() => opt.available && setChoice(opt.value)}
-            style={{
-              display: "flex", alignItems: "center", gap: 12,
-              padding: "14px 16px", borderRadius: 14, marginBottom: 10,
-              border: `2px solid ${choice === opt.value ? opt.color : "#ECEAE4"}`,
-              background: choice === opt.value ? opt.bg : opt.available ? "#fff" : "#F7F6F2",
-              cursor: opt.available ? "pointer" : "not-allowed",
-              opacity: opt.available ? 1 : 0.5,
-              transition: "all 0.15s",
-            }}
-          >
-            <div style={{
-              width: 20, height: 20, borderRadius: "50%", border: `2px solid ${choice === opt.value ? opt.color : "#DDD"}`,
-              background: choice === opt.value ? opt.color : "transparent",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s",
-            }}>
-              {choice === opt.value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: opt.available ? "#1A1A1A" : "#999" }}>{opt.label}</div>
-              {!opt.available && <div style={{ fontSize: 10, color: "#BBB", marginTop: 1 }}>Slot already taken</div>}
-            </div>
-          </div>
-        ))}
-
-        <button
-          className="btn"
-          onClick={handleSubmit}
-          disabled={!choice || endorsing}
-          style={{ width: "100%", marginTop: 8, background: choice && !endorsing ? "#1A1A1A" : "#ECEAE4", color: choice && !endorsing ? "#F7F6F2" : "#BBB", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.2s" }}
-        >
-          {endorsing ? <><Spinner /> Submitting…</> : "Submit Endorsement"}
-        </button>
+        <div className="modal-divider" />
+        <div className="modal-footer">
+          <button className="modal-btn-primary" onClick={handleSubmit} disabled={!choice || endorsing} style={{ width: "100%" }}>
+            {endorsing ? <><Spinner /> Submitting…</> : "Submit Endorsement"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1913,22 +1918,22 @@ function AttendanceModal({ meeting, onClose, showToast }) {
   const apologyCount = rows?.filter(r => r.status === "apology").length ?? 0;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1100, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
-      <div className="slide-up modal-card" onClick={e => e.stopPropagation()}
-        style={{ background: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+    <div className="modal-backdrop" style={{ alignItems: "flex-end" }} onClick={onClose}>
+      <div className="slide-up modal-sheet" onClick={e => e.stopPropagation()}
+        style={{ borderRadius: "24px 24px 0 0", maxWidth: 520, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
 
         {/* Header */}
-        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #F0EEE8" }}>
+        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--border2)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Meeting Attendance</div>
-              <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{meeting.date} · {meeting.location}</div>
+              <div className="modal-title">Meeting Attendance</div>
+              <div className="modal-sub">{meeting.date} · {meeting.location}</div>
             </div>
-            <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            <ModalCloseBtn onClick={onClose} />
           </div>
           {rows && (
             <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
-              {[["Present", presentCount, "#2E7D32", "#E8F5E9"], ["Apology", apologyCount, "#F57F17", "#FFF8E1"], ["Absent", absentCount, "#C62828", "#FFEBEE"]].map(([l, c, tc, bg]) => (
+              {[["Present", presentCount, "var(--green)", "var(--grn-l)"], ["Apology", apologyCount, "var(--amber)", "var(--amb-l)"], ["Absent", absentCount, "var(--red)", "var(--red-l)"]].map(([l, c, tc, bg]) => (
                 <div key={l} style={{ flex: 1, background: bg, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
                   <div style={{ fontSize: 18, fontWeight: 700, color: tc }}>{c}</div>
                   <div style={{ fontSize: 9, color: tc, opacity: 0.8 }}>{l.toUpperCase()}</div>
@@ -1940,9 +1945,14 @@ function AttendanceModal({ meeting, onClose, showToast }) {
 
         {/* Auto-fines log */}
         {fines.length > 0 && (
-          <div style={{ margin: "0 16px", marginTop: 12, background: "#FFF8E1", borderRadius: 10, padding: "10px 14px", border: "1px solid #FFE082" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#F57F17", letterSpacing: 0.5, marginBottom: 6 }}>AUTO-FINES GENERATED</div>
-            {fines.map((f, i) => <div key={i} style={{ fontSize: 11, color: "#555", marginBottom: 2 }}>⚡ {f}</div>)}
+          <div style={{ margin: "12px 16px 0", background: "var(--amb-l)", borderRadius: 10, padding: "10px 14px", border: "1px solid #fde68a" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--amber)", letterSpacing: 0.5, marginBottom: 6 }}>AUTO-FINES GENERATED</div>
+            {fines.map((f, i) => (
+              <div key={i} style={{ fontSize: 11, color: "var(--fg2)", marginBottom: 2, display: "flex", gap: 6, alignItems: "flex-start" }}>
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="var(--amber)" style={{ flexShrink: 0, marginTop: 1 }}><polygon points="5.5,1 7,4 10.5,4.5 8,7 8.5,10.5 5.5,9 2.5,10.5 3,7 0.5,4.5 4,4"/></svg>
+                {f}
+              </div>
+            ))}
           </div>
         )}
 
@@ -1951,13 +1961,13 @@ function AttendanceModal({ meeting, onClose, showToast }) {
           {!rows ? (
             <div style={{ padding: 32, textAlign: "center" }}><Spinner /></div>
           ) : rows.map(r => (
-            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #F5F4F0" }}>
-              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#C8A97E,#A07850)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--border2)" }}>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,var(--amber),var(--fg))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
                 {r.name?.charAt(0)}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
-                <div style={{ fontSize: 10, color: "#999" }}>{r.role}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                <div style={{ fontSize: 10, color: "var(--fg3)" }}>{r.role}</div>
               </div>
               {saving === r.id ? (
                 <div style={{ width: 18, height: 18 }}><Spinner /></div>
@@ -1966,9 +1976,9 @@ function AttendanceModal({ meeting, onClose, showToast }) {
                   {STATUS_OPTS.map(opt => (
                     <button key={opt.value} onClick={() => handleChange(r.id, opt.value)} style={{
                       padding: "5px 10px", borderRadius: 8, border: "2px solid", fontSize: 10, fontWeight: 600, cursor: "pointer", transition: "all 0.12s",
-                      borderColor: r.status === opt.value ? opt.color : "#ECEAE4",
-                      background:  r.status === opt.value ? opt.bg : "#fff",
-                      color:       r.status === opt.value ? opt.color : "#BBB",
+                      borderColor: r.status === opt.value ? opt.color : "var(--border)",
+                      background:  r.status === opt.value ? opt.bg : "var(--surface)",
+                      color:       r.status === opt.value ? opt.color : "var(--fg3)",
                     }}>{opt.label}</button>
                   ))}
                 </div>
@@ -1977,16 +1987,16 @@ function AttendanceModal({ meeting, onClose, showToast }) {
           ))}
         </div>
 
-        <div style={{ padding: "12px 24px 28px", borderTop: "1px solid #F0EEE8", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ padding: "12px 24px 28px", borderTop: "1px solid var(--border2)", display: "flex", flexDirection: "column", gap: 8 }}>
           <button className="btn" disabled={lateFining}
             onClick={async () => {
               setLateFining(true);
               try {
                 const res = await api.autoLateFines(meeting.id);
                 if (res.generated.length === 0) {
-                  showToast("All members have paid — no late fines needed ✓");
+                  showToast("All members have paid — no late fines needed");
                 } else {
-                  const msgs = res.generated.map(f => `⚡ ${f.name} (${f.shares} share${f.shares > 1 ? "s" : ""}) — KES ${f.amount.toLocaleString()} late contribution fine`);
+                  const msgs = res.generated.map(f => `${f.name} (${f.shares}sh) — KES ${f.amount.toLocaleString()} late fine`);
                   setFines(prev => [...prev, ...msgs]);
                   showToast(`${res.generated.length} late payment fine${res.generated.length > 1 ? "s" : ""} generated`);
                 }
@@ -1996,13 +2006,10 @@ function AttendanceModal({ meeting, onClose, showToast }) {
                 setLateFining(false);
               }
             }}
-            style={{ width: "100%", background: "#FFF8E1", color: "#E65100", border: "1px solid #FFE082", borderRadius: 14, padding: 13, fontSize: 13, fontWeight: 700 }}>
-            {lateFining ? "Checking…" : "⚡ Auto Late Payment Fines"}
+            style={{ width: "100%", background: "var(--amb-l)", color: "var(--amber)", border: "1px solid #fde68a", borderRadius: 14, fontSize: 13, fontWeight: 700 }}>
+            {lateFining ? "Checking…" : "Auto Late Payment Fines"}
           </button>
-          <button className="btn" onClick={onClose}
-            style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700 }}>
-            Done
-          </button>
+          <button className="modal-btn-primary" onClick={onClose} style={{ width: "100%" }}>Done</button>
         </div>
       </div>
     </div>
@@ -2546,11 +2553,10 @@ function EmptyState({ type = "contributions", title, subtitle, action, onAction 
       <div style={{ marginBottom: 20, opacity: 0.9 }}>
         {EMPTY_ILLUSTRATIONS[type]}
       </div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A", marginBottom: 6, letterSpacing: "-0.3px" }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 13, color: "#BBB", maxWidth: 240, lineHeight: 1.5 }}>{subtitle}</div>}
+      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)", marginBottom: 6, letterSpacing: "-0.3px" }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 13, color: "var(--fg3)", maxWidth: 240, lineHeight: 1.5 }}>{subtitle}</div>}
       {action && onAction && (
-        <button className="btn" onClick={onAction}
-          style={{ marginTop: 20, background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "10px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <button className="btn btn-p" onClick={onAction} style={{ marginTop: 20, borderRadius: 12, padding: "10px 22px", fontSize: 13, fontWeight: 600 }}>
           {action}
         </button>
       )}
@@ -2632,90 +2638,95 @@ function ImportDataModal({ onClose, showToast, onRefresh }) {
   const TABS = [["members","Members"],["contributions","Contributions"],["fines","Fines"],["meetings","Meetings"]];
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 540, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A" }}>📥 Import Data</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#999", lineHeight: 1 }}>✕</button>
+    <div className="modal-backdrop" style={{ alignItems: "center" }}>
+      <div className="modal-sheet" style={{ maxWidth: 540, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+        <div className="modal-header">
+          <div className="modal-title">Import Data</div>
+          <ModalCloseBtn onClick={onClose} />
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 6, padding: "14px 20px 0" }}>
+        <div style={{ display: "flex", gap: 6, padding: "14px 24px 0" }}>
           {TABS.map(([k, label]) => (
             <button key={k} onClick={() => { setTab(k); setFile(null); setRows([]); setHeaders([]); setResult(null); }}
-              style={{ background: tab === k ? "#1A1A1A" : "#F0EEE8", color: tab === k ? "#F7F6F2" : "#555", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              style={{ background: tab === k ? "var(--fg)" : "var(--sf3)", color: tab === k ? "#fff" : "var(--fg2)", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
               {label}
             </button>
           ))}
         </div>
 
-        <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
-          <div style={{ background: "#F8F7F3", borderRadius: 12, padding: 14, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: "#555", marginBottom: 6, fontWeight: 600 }}>CSV format hint</div>
-            <code style={{ fontSize: 11, color: "#777", display: "block" }}>{TEMPLATES[tab].headers.join(", ")}</code>
-            <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>{TEMPLATES[tab].hint}</div>
+        <div className="modal-body" style={{ overflowY: "auto", flex: 1 }}>
+          <div style={{ background: "var(--sf2)", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "var(--fg2)", marginBottom: 6, fontWeight: 600 }}>CSV format</div>
+            <code style={{ fontSize: 11, color: "var(--fg3)", display: "block" }}>{TEMPLATES[tab].headers.join(", ")}</code>
+            <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 4 }}>{TEMPLATES[tab].hint}</div>
           </div>
 
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <button className="btn" onClick={downloadTemplate}
-              style={{ flex: 1, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 0", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-              ⬇ Download Template
+            <button className="btn btn-o" onClick={downloadTemplate} style={{ flex: 1, fontSize: 12 }}>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 1v8M3.5 6.5l3 3 3-3M1 10.5v1a1 1 0 001 1h9a1 1 0 001-1v-1"/></svg>
+              Download Template
             </button>
-            <button className="btn" onClick={() => fileRef.current?.click()}
-              style={{ flex: 1, background: "#F0EEE8", color: "#1A1A1A", border: "none", borderRadius: 10, padding: "9px 0", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-              📂 Choose CSV File
+            <button className="btn btn-o" onClick={() => fileRef.current?.click()} style={{ flex: 1, fontSize: 12 }}>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 8v2.5a1 1 0 01-1 1H3a1 1 0 01-1-1V8M4 4.5L6.5 2l2.5 2.5M6.5 2v7"/></svg>
+              Choose CSV
             </button>
             <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={onFileChange} />
           </div>
 
           {file && (
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: "var(--fg2)", marginBottom: 10 }}>
               <strong>{file.name}</strong> — {rows.length} row{rows.length !== 1 ? "s" : ""} detected
             </div>
           )}
 
           {rows.length > 0 && (
-            <div style={{ overflowX: "auto", marginBottom: 14, border: "1px solid #EEE", borderRadius: 10 }}>
+            <div style={{ overflowX: "auto", marginBottom: 14, border: "1px solid var(--border)", borderRadius: 10 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
-                  <tr style={{ background: "#F8F7F3" }}>
-                    {headers.map(h => <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#555", whiteSpace: "nowrap" }}>{h}</th>)}
+                  <tr style={{ background: "var(--sf2)" }}>
+                    {headers.map(h => <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "var(--fg2)", whiteSpace: "nowrap" }}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.slice(0, 5).map((r, i) => (
-                    <tr key={i} style={{ borderTop: "1px solid #F0EEE8" }}>
-                      {headers.map(h => <td key={h} style={{ padding: "6px 10px", color: "#333", whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>{r[h]}</td>)}
+                    <tr key={i} style={{ borderTop: "1px solid var(--border2)" }}>
+                      {headers.map(h => <td key={h} style={{ padding: "6px 10px", color: "var(--fg)", whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>{r[h]}</td>)}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {rows.length > 5 && <div style={{ padding: "6px 10px", fontSize: 11, color: "#999" }}>…and {rows.length - 5} more row{rows.length - 5 !== 1 ? "s" : ""}</div>}
+              {rows.length > 5 && <div style={{ padding: "6px 10px", fontSize: 11, color: "var(--fg3)" }}>…and {rows.length - 5} more row{rows.length - 5 !== 1 ? "s" : ""}</div>}
             </div>
           )}
 
           {result && (
-            <div style={{ background: result.ok ? "#E8F5E9" : "#FFEBEE", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+            <div style={{ background: result.ok ? "var(--grn-l)" : "var(--red-l)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
               {result.ok ? (
                 <>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#2E7D32" }}>✓ Import complete</div>
-                  <div style={{ fontSize: 12, color: "#388E3C", marginTop: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--green)", display: "flex", gap: 6, alignItems: "center" }}>
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,6.5 5,10 11.5,3"/></svg>
+                    Import complete
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--green)", marginTop: 4 }}>
                     {result.inserted} inserted{result.skipped ? `, ${result.skipped} skipped (duplicates)` : ""}
                   </div>
                   {result.errors?.length > 0 && (
-                    <div style={{ fontSize: 11, color: "#E65100", marginTop: 6 }}>
-                      {result.errors.slice(0, 5).map((e, i) => <div key={i}>⚠ {e}</div>)}
+                    <div style={{ fontSize: 11, color: "var(--amber)", marginTop: 6 }}>
+                      {result.errors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
                     </div>
                   )}
                 </>
               ) : (
-                <div style={{ fontSize: 13, color: "#C62828", fontWeight: 600 }}>✗ {result.error}</div>
+                <div style={{ fontSize: 13, color: "var(--red)", fontWeight: 600, display: "flex", gap: 6, alignItems: "center" }}>
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M2 2l9 9M11 2L2 11"/></svg>
+                  {result.error}
+                </div>
               )}
             </div>
           )}
 
-          <button className="btn" onClick={doImport} disabled={importing || rows.length === 0}
-            style={{ width: "100%", background: rows.length > 0 ? "#1A1A1A" : "#CCC", color: "#F7F6F2", border: "none", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, cursor: rows.length > 0 ? "pointer" : "default" }}>
+          <button className="modal-btn-primary" onClick={doImport} disabled={importing || rows.length === 0} style={{ width: "100%" }}>
             {importing ? "Importing…" : `Import ${rows.length} row${rows.length !== 1 ? "s" : ""}`}
           </button>
         </div>
@@ -2830,43 +2841,53 @@ function SettingsPinModal({ onClose }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
-      <div className="slide-up modal-card" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 440, padding: "28px 24px 40px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Change PIN</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#999", cursor: "pointer" }}>✕</button>
+    <div className="modal-backdrop" style={{ alignItems: "flex-end" }} onClick={onClose}>
+      <div className="slide-up modal-sheet" onClick={e => e.stopPropagation()} style={{ borderRadius: "24px 24px 0 0" }}>
+        <div className="modal-header">
+          <div className="modal-title">Change PIN</div>
+          <ModalCloseBtn onClick={onClose} />
         </div>
 
-        {done ? (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>PIN updated!</div>
-          </div>
-        ) : (
-          <>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 10 }}>Current PIN</div>
-              <SettingsPinBoxes value={current} onChange={setCurrent} />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 10 }}>New PIN</div>
-              <SettingsPinBoxes value={next} onChange={setNext} />
-            </div>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: mismatch ? "#EF5350" : "#555", marginBottom: 10 }}>
-                Confirm New PIN {mismatch && "— don't match"}
+        <div className="modal-body">
+          {done ? (
+            <div style={{ textAlign: "center", padding: "24px 0" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--grn-l)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,11 8.5,16.5 19,5"/></svg>
               </div>
-              <SettingsPinBoxes value={confirm} onChange={setConfirm} hasError={mismatch} />
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)" }}>PIN updated!</div>
             </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: 20 }}>
+                <div className="mf-label">Current PIN</div>
+                <SettingsPinBoxes value={current} onChange={setCurrent} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <div className="mf-label">New PIN</div>
+                <SettingsPinBoxes value={next} onChange={setNext} />
+              </div>
+              <div style={{ marginBottom: 24 }}>
+                <div className="mf-label" style={{ color: mismatch ? "var(--red)" : "var(--fg3)" }}>
+                  Confirm New PIN {mismatch && "— don't match"}
+                </div>
+                <SettingsPinBoxes value={confirm} onChange={setConfirm} hasError={mismatch} />
+              </div>
 
-            {error && (
-              <div style={{ background: "#FBE9E7", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#BF360C", fontWeight: 500 }}>{error}</div>
-            )}
+              {error && (
+                <div style={{ background: "var(--red-l)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--red)", fontWeight: 500 }}>{error}</div>
+              )}
+            </>
+          )}
+        </div>
 
-            <button onClick={handleSave} disabled={!ready || saving}
-              style={{ width: "100%", background: ready && !saving ? "#1A1A1A" : "#ECEAE4", color: ready && !saving ? "#F7F6F2" : "#BBB", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, transition: "all 0.2s" }}>
-              {saving ? "Saving…" : "Update PIN"}
-            </button>
+        {!done && (
+          <>
+            <div className="modal-divider" />
+            <div className="modal-footer">
+              <button className="modal-btn-primary" onClick={handleSave} disabled={!ready || saving} style={{ width: "100%" }}>
+                {saving ? "Saving…" : "Update PIN"}
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -2888,9 +2909,13 @@ function SettingsPinBoxes({ value, onChange, hasError }) {
           background: value ? "#F0EDE6" : "#F9F8F5", outline: "none", fontFamily: "inherit",
           transition: "border-color 0.15s, background 0.15s", boxSizing: "border-box" }}
       />
-      <button type="button" onClick={() => setShow(v => !v)} tabIndex={-1}
-        style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#999", padding: 4 }}>
-        {show ? "🙈" : "👁"}
+      <button type="button" onClick={() => setShow(v => !v)} tabIndex={-1} aria-label={show ? "Hide PIN" : "Show PIN"}
+        style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg3)", padding: 4, display: "flex", alignItems: "center" }}>
+        {show ? (
+          <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 8.5C2.5 5 5.2 3 8.5 3s6 2 7.5 5.5c-1.5 3.5-4.2 5.5-7.5 5.5S2.5 12 1 8.5z"/><circle cx="8.5" cy="8.5" r="2.3"/><line x1="2" y1="2" x2="15" y2="15"/></svg>
+        ) : (
+          <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 8.5C2.5 5 5.2 3 8.5 3s6 2 7.5 5.5c-1.5 3.5-4.2 5.5-7.5 5.5S2.5 12 1 8.5z"/><circle cx="8.5" cy="8.5" r="2.3"/></svg>
+        )}
       </button>
     </div>
   );
@@ -3017,7 +3042,7 @@ function TranscriptPanel({ meeting, onClose }) {
               <div style={{ fontSize: 12, color: "#999", marginTop: 3 }}>{freshMeeting.location}</div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#BBB", cursor: "pointer", lineHeight: 1 }}>✕</button>
+              <ModalCloseBtn onClick={onClose} />
             </div>
           </div>
           {(freshMeeting.proposer_name || freshMeeting.seconder_name) && (
@@ -3182,13 +3207,16 @@ function TranscriptPanel({ meeting, onClose }) {
 
 function PDFModal({ meeting, members, onClose }) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
-      <div className="slide-up modal-card" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }}>
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #ECEAE4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Meeting Minutes</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => window.print()} style={{ background: "#F0EEE8", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>📥 Export PDF</button>
-            <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 20, color: "#999", cursor: "pointer" }}>✕</button>
+    <div className="modal-backdrop" style={{ alignItems: "flex-end" }} onClick={onClose}>
+      <div className="slide-up modal-sheet" onClick={e => e.stopPropagation()} style={{ borderRadius: "24px 24px 0 0", maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }}>
+        <div className="modal-header" style={{ paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+          <div className="modal-title">Meeting Minutes</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="btn btn-o btn-sm" onClick={() => window.print()} style={{ fontSize: 12 }}>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 8v2.5a1 1 0 01-1 1H3a1 1 0 01-1-1V8M4 4.5L6.5 2l2.5 2.5M6.5 2v7"/></svg>
+              Export PDF
+            </button>
+            <ModalCloseBtn onClick={onClose} />
           </div>
         </div>
         <div style={{ padding: "28px 28px 40px", fontFamily: "Georgia, serif" }}>
