@@ -1065,36 +1065,60 @@ function ContributionsPage({ contributions, members, isAdmin, loading, filterYea
 
 // ── Delete Contribution Modal ─────────────────────────────────────────────────
 
+function ModalCloseBtn({ onClick }) {
+  return (
+    <button className="modal-close" onClick={onClick} aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M1 1l12 12M13 1L1 13"/>
+      </svg>
+    </button>
+  );
+}
+
 function DeleteContribModal({ contrib, onClose, onConfirm, deleting }) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div className="fade-up modal-card" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 400, padding: "28px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <div className="modal-header">
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Delete Record</div>
-            <div style={{ fontSize: 11, color: "#999", marginTop: 3 }}>This action cannot be undone</div>
+            <div className="modal-title">Delete Record</div>
+            <div className="modal-sub">This action cannot be undone</div>
           </div>
-          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <ModalCloseBtn onClick={onClose} />
         </div>
 
-        <div style={{ background: "#FFF5F5", border: "1px solid #FED7D7", borderRadius: 14, padding: "14px 16px", marginBottom: 24 }}>
-          <div style={{ fontSize: 12, color: "#999", marginBottom: 6 }}>You are about to permanently delete:</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A1A" }}>{contrib.member_name}</div>
-          <div style={{ fontSize: 12, color: "#555", marginTop: 4, display: "flex", gap: 12 }}>
-            <span>{contrib.month}</span>
-            <span>·</span>
-            <span>{contrib.type}</span>
-            <span>·</span>
-            <span style={{ fontWeight: 600, color: "var(--red)" }}>{fmt(contrib.amount)}</span>
+        <div className="modal-body" style={{ paddingTop: 20 }}>
+          <div className="modal-danger-card" style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div className="modal-danger-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--fg3)", marginBottom: 6 }}>Permanently deleting:</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg)" }}>{contrib.member_name}</div>
+              <div style={{ fontSize: 12, color: "var(--fg2)", marginTop: 5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ background: "var(--sf3)", borderRadius: 6, padding: "2px 8px", fontWeight: 500 }}>{contrib.month}</span>
+                <span style={{ background: "var(--sf3)", borderRadius: 6, padding: "2px 8px", fontWeight: 500 }}>{contrib.type}</span>
+                <span style={{ fontWeight: 700, color: "var(--red)" }}>{fmt(contrib.amount)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} disabled={deleting} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid #E0DDD6", background: "#fff", fontSize: 13, fontWeight: 600, color: "#555", cursor: "pointer" }}>
-            Cancel
-          </button>
-          <button onClick={onConfirm} disabled={deleting} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: "var(--red)", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: deleting ? 0.6 : 1 }}>
-            {deleting ? "Deleting…" : "Delete"}
+        <div className="modal-footer">
+          <button className="modal-btn-ghost" onClick={onClose} disabled={deleting}>Cancel</button>
+          <button className="modal-btn-danger" onClick={onConfirm} disabled={deleting}>
+            {deleting ? (
+              <><Spinner /> Deleting…</>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                </svg>
+                Delete Record
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -3235,9 +3259,10 @@ function AddMemberModal({ onClose, onAdd }) {
   const [form, setForm] = useState({ name: "", phone: "", email: "", shares: "1", role: "Member" });
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const canSubmit = form.name.trim() && form.phone.trim();
 
   const handleSubmit = async () => {
-    if (!form.name) return;
+    if (!canSubmit) return;
     setSaving(true);
     try {
       await onAdd({ ...form, shares: parseInt(form.shares) || 1 });
@@ -3246,37 +3271,65 @@ function AddMemberModal({ onClose, onAdd }) {
     }
   };
 
+  const roleColor = { Chairman: "#b45309", Secretary: "#15803d", Member: "var(--accent)" };
+  const roleBg    = { Chairman: "#fef3c7", Secretary: "#dcfce7", Member: "var(--acc-l)" };
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div className="fade-up modal-card" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", padding: "24px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Add New Member</div>
-          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-        </div>
-        {[["Full Name","text","e.g. Alice Mwangi","name"],["Phone","tel","07XX XXX XXX","phone"],["Email","email","alice@email.com","email"]].map(([l,t,p,k]) => (
-          <div key={k} style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>{l.toUpperCase()}</div>
-            <input type={t} placeholder={p} value={form[k]} onChange={e => setF(k, e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #ECEAE4", background: "#F7F6F2", fontSize: 13, fontFamily: "inherit", outline: "none" }} />
-          </div>
-        ))}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
           <div>
-            <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>SHARES</div>
-            <input type="number" min={1} value={form.shares} onChange={e => setF("shares", e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #ECEAE4", background: "#F7F6F2", fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+            <div className="modal-title">Add New Member</div>
+            <div className="modal-sub">Fill in the details below</div>
           </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>ROLE</div>
-            <select value={form.role} onChange={e => setF("role", e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #ECEAE4", background: "#F7F6F2", fontSize: 13, fontFamily: "inherit", outline: "none", cursor: "pointer" }}>
-              <option>Member</option><option>Secretary</option><option>Chairman</option>
-            </select>
+          <ModalCloseBtn onClick={onClose} />
+        </div>
+
+        <div className="modal-body">
+          {/* Avatar preview strip */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--sf2)", borderRadius: 14, padding: "12px 14px", marginBottom: 20 }}>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: `linear-gradient(135deg,${roleColor[form.role]},${roleBg[form.role]})`, border: `2px solid ${roleBg[form.role]}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, color: roleColor[form.role], flexShrink: 0 }}>
+              {form.name?.charAt(0)?.toUpperCase() || "?"}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: form.name ? "var(--fg)" : "var(--fg3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{form.name || "Member name"}</div>
+              <div style={{ display: "inline-block", marginTop: 4, padding: "2px 10px", borderRadius: 20, background: roleBg[form.role], color: roleColor[form.role], fontSize: 10, fontWeight: 700 }}>{form.role}</div>
+            </div>
+          </div>
+
+          {/* Text fields */}
+          {[["Full Name","text","e.g. Alice Mwangi","name",null],["Phone","tel","07XX XXX XXX","phone","Used to log in"],["Email (optional)","email","alice@email.com","email",null]].map(([label,type,placeholder,key,hint]) => (
+            <div key={key} style={{ marginBottom: 14 }}>
+              <div className="mf-label">{label}</div>
+              <input className="mf-input" type={type} placeholder={placeholder} value={form[key]} onChange={e => setF(key, e.target.value)} />
+              {hint && <div className="mf-hint">{hint}</div>}
+            </div>
+          ))}
+
+          {/* Shares + Role */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 4 }}>
+            <div>
+              <div className="mf-label">Shares</div>
+              <input className="mf-input" type="number" min={1} value={form.shares} onChange={e => setF("shares", e.target.value)} />
+            </div>
+            <div>
+              <div className="mf-label">Role</div>
+              <select className="mf-input" value={form.role} onChange={e => setF("role", e.target.value)} style={{ cursor: "pointer" }}>
+                <option>Member</option><option>Secretary</option><option>Chairman</option>
+              </select>
+            </div>
           </div>
         </div>
-        <button className="btn" onClick={handleSubmit} disabled={saving || !form.name || !form.phone} style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", opacity: !form.name || !form.phone ? 0.5 : 1 }}>
-          {saving ? <><Spinner /> Adding…</> : "Add Member"}
-        </button>
-        <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 10, textAlign: "center" }}>
-          A WhatsApp onboarding message will be sent to the member's phone.
-        </p>
+
+        <div className="modal-divider" />
+        <div className="modal-footer" style={{ flexDirection: "column", gap: 10 }}>
+          <button className="modal-btn-primary" onClick={handleSubmit} disabled={saving || !canSubmit} style={{ width: "100%" }}>
+            {saving ? <><Spinner /> Adding…</> : "Add Member"}
+          </button>
+          <p style={{ fontSize: 11, color: "var(--fg3)", textAlign: "center", lineHeight: 1.5 }}>
+            A WhatsApp onboarding message will be sent to the member's phone.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -3319,61 +3372,68 @@ function EditMemberModal({ member, onClose, onSave }) {
   const inputStyle = { width: "100%", padding: "13px 14px", borderRadius: 12, border: "1.5px solid #ECEAE4", background: "#F9F8F5", fontSize: 14, fontFamily: "inherit", outline: "none", color: "#1A1A1A", transition: "border-color 0.15s" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div className="fade-up modal-card" onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", padding: "24px 24px 32px", boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}>
-
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>Edit Member</div>
-            <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>Changes are saved to the database</div>
+            <div className="modal-title">Edit Member</div>
+            <div className="modal-sub">Changes are saved to the database</div>
           </div>
-          <button onClick={onClose} style={{ background: "#F0EEE8", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, color: "#666", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <ModalCloseBtn onClick={onClose} />
         </div>
 
-        {/* Avatar preview */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#F7F6F2", borderRadius: 14, padding: "12px 16px", marginBottom: 20 }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: form.role === "Chairman" ? "linear-gradient(135deg,#FFD54F,#FF8F00)" : form.role === "Secretary" ? "linear-gradient(135deg,#81C784,#2E7D32)" : "linear-gradient(135deg,#90CAF9,#1565C0)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
-            {form.name?.charAt(0)?.toUpperCase() || "?"}
+        <div className="modal-body">
+          {/* Avatar preview */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--sf2)", borderRadius: 14, padding: "12px 14px", marginBottom: 20 }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: form.role === "Chairman" ? "linear-gradient(135deg,#fbbf24,#b45309)" : form.role === "Secretary" ? "linear-gradient(135deg,#4ade80,#15803d)" : "linear-gradient(135deg,#60a5fa,#1d4ed8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
+              {form.name?.charAt(0)?.toUpperCase() || "?"}
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{form.name || "—"}</div>
+              <div style={{ display: "inline-block", marginTop: 4, padding: "2px 10px", borderRadius: 20, background: roleBg[form.role], color: roleColor[form.role], fontSize: 10, fontWeight: 700 }}>{form.role}</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#1A1A1A" }}>{form.name || "—"}</div>
-            <div style={{ display: "inline-block", marginTop: 4, padding: "2px 10px", borderRadius: 20, background: roleBg[form.role], color: roleColor[form.role], fontSize: 10, fontWeight: 700 }}>{form.role}</div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div className="mf-label">Full Name</div>
+            <input className="mf-input" value={form.name} onChange={e => setF("name", e.target.value)} placeholder="Full name" />
           </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div className="mf-label">Phone Number</div>
+            <input className="mf-input" type="tel" value={form.phone} onChange={e => setF("phone", e.target.value)} placeholder="07XX XXX XXX" />
+            <div className="mf-hint">This is the number used to log in</div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 4 }}>
+            <div>
+              <div className="mf-label">Shares</div>
+              <input className="mf-input" type="number" min={1} max={10} value={form.shares} onChange={e => setF("shares", e.target.value)} />
+            </div>
+            <div>
+              <div className="mf-label">Role</div>
+              <select className="mf-input" value={form.role} onChange={e => setF("role", e.target.value)} style={{ cursor: "pointer" }}>
+                <option value="Member">Member</option>
+                <option value="Secretary">Secretary</option>
+                <option value="Chairman">Chairman</option>
+              </select>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ background: "var(--red-l)", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", marginTop: 14, fontSize: 12, color: "var(--red)", fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
         </div>
 
-        {/* Fields */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>FULL NAME</div>
-          <input value={form.name} onChange={e => setF("name", e.target.value)} placeholder="Full name" style={inputStyle} />
+        <div className="modal-divider" />
+        <div className="modal-footer">
+          <button className="modal-btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="modal-btn-primary" onClick={handleSubmit} disabled={saving || !changed}>
+            {saving ? <><Spinner /> Saving…</> : changed ? "Save Changes" : "No Changes"}
+          </button>
         </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>PHONE NUMBER</div>
-          <input type="tel" value={form.phone} onChange={e => setF("phone", e.target.value)} placeholder="07XX XXX XXX" style={inputStyle} />
-          <div style={{ fontSize: 10, color: "#BBB", marginTop: 4 }}>This is the number used to log in</div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>SHARES</div>
-            <input type="number" min={1} max={10} value={form.shares} onChange={e => setF("shares", e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#999", letterSpacing: 0.5, marginBottom: 6 }}>ROLE</div>
-            <select value={form.role} onChange={e => setF("role", e.target.value)} style={{ ...inputStyle, cursor: "pointer", appearance: "none", WebkitAppearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}>
-              <option value="Member">Member</option>
-              <option value="Secretary">Secretary</option>
-              <option value="Chairman">Chairman</option>
-            </select>
-          </div>
-        </div>
-
-        {error && <div style={{ background: "#FBE9E7", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#BF360C", fontWeight: 500 }}>{error}</div>}
-
-        <button className="btn" onClick={handleSubmit} disabled={saving || !changed} style={{ width: "100%", background: changed && !saving ? "#1A1A1A" : "#ECEAE4", color: changed && !saving ? "#F7F6F2" : "#BBB", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.2s" }}>
-          {saving ? <><Spinner /> Saving…</> : changed ? "Save Changes" : "No Changes"}
-        </button>
       </div>
     </div>
   );
