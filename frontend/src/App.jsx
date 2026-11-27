@@ -1427,10 +1427,10 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
                       padding: "6px 2px 4px",
                       borderRadius: 10,
                       cursor: (hasMtg || canSched) ? "pointer" : "default",
-                      background: isToday ? "#1A1A1A" : hasMtg ? "#FBF5EC" : "transparent",
+                      background: isToday ? "var(--accent)" : hasMtg ? "#FBF5EC" : "transparent",
                       transition: "background 0.12s",
                     }}>
-                    <div style={{ fontSize: 13, fontWeight: (isToday || hasMtg) ? 700 : 400, color: isToday ? "#fff" : hasMtg ? "#A07850" : isPast ? "#CCC" : "#333" }}>{day}</div>
+                    <div style={{ fontSize: 13, fontWeight: (isToday || hasMtg) ? 700 : 400, color: isToday ? "#fff" : hasMtg ? "#A07850" : isPast ? "var(--fg3)" : "var(--fg)" }}>{day}</div>
                     {hasMtg && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#C8A97E", margin: "2px auto 0" }} />}
                   </div>
                 );
@@ -1719,8 +1719,8 @@ function MeetingsPage({ meetings, loading, isAdmin, currentUser, setSelectedMeet
               {m.transcript && (
                 canEndorse ? (
                   <button className="btn" onClick={() => setEndorseTarget(m)}
-                    style={{ flex: 1, background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 10, padding: "9px 8px", fontSize: 11, fontWeight: 600 }}>
-                    ✍ Endorse
+                    style={{ flex: 1, background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 8px", fontSize: 11, fontWeight: 600 }}>
+                    Endorse
                   </button>
                 ) : userHasEndorsed ? (
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#4CAF50", fontWeight: 600 }}>
@@ -2056,12 +2056,12 @@ function AnnualReportPage({ report, loading, year, setYear }) {
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ display: "flex", background: "#ECEAE4", borderRadius: 10, padding: 3 }}>
             {years.map(y => (
-              <button key={y} onClick={() => setYear(y)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: year === y ? "#1A1A1A" : "transparent", color: year === y ? "#fff" : "#888" }}>{y}</button>
+              <button key={y} onClick={() => setYear(y)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", background: year === y ? "var(--accent)" : "transparent", color: year === y ? "#fff" : "var(--fg3)" }}>{y}</button>
             ))}
           </div>
-          <button className="btn" onClick={handlePrint}
-            style={{ background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 12, fontWeight: 700 }}>
-            ⬇ Export PDF
+          <button className="btn btn-p" onClick={handlePrint} style={{ fontSize: 12 }}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 8v2.5a1 1 0 01-1 1H3a1 1 0 01-1-1V8M4 4.5L6.5 2l2.5 2.5M6.5 2v7"/></svg>
+            Export PDF
           </button>
         </div>
       </div>
@@ -2219,7 +2219,7 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
       {/* Tab toggle */}
       <div style={{ display: "flex", background: "#F0EFEA", borderRadius: 12, padding: 4, marginBottom: 20, gap: 4 }}>
         {[["single","Single Entry"],["bulk","Bulk Import"]].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s", background: tab === id ? "#1A1A1A" : "transparent", color: tab === id ? "#F7F6F2" : "#999" }}>
+          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s", background: tab === id ? "var(--accent)" : "transparent", color: tab === id ? "#fff" : "var(--fg3)" }}>
             {label}
           </button>
         ))}
@@ -2302,13 +2302,13 @@ function RecordPage({ members, summary, loading, recordForm, setRecordForm, onSu
         </Label>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, marginTop: 4 }}>
-          <div onClick={() => setF("confirmed", !F.confirmed)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: F.confirmed ? "#1A1A1A" : "#CCC", background: F.confirmed ? "#1A1A1A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s", flexShrink: 0 }}>
-            {F.confirmed && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
+          <div onClick={() => setF("confirmed", !F.confirmed)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: F.confirmed ? "var(--accent)" : "var(--border)", background: F.confirmed ? "var(--accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s", flexShrink: 0 }}>
+            {F.confirmed && <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2"/></svg>}
           </div>
           <div style={{ fontSize: 13, color: "#555" }}>Mark as Confirmed</div>
         </div>
 
-        <button className="btn" onClick={onSubmit} disabled={loading} style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <button className="modal-btn-primary" onClick={onSubmit} disabled={loading} style={{ width: "100%", borderRadius: 14, padding: "14px", fontSize: 14 }}>
           {loading ? <><Spinner /> Saving…</> : "Save Contribution"}
         </button>
       </div>
@@ -2424,8 +2424,8 @@ function BulkImportTab({ members, loading, onBulkImport, selectStyle }) {
         </Label>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-          <div onClick={() => toggleAllConfirmed(!allConfirmed)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: allConfirmed ? "#1A1A1A" : "#CCC", background: allConfirmed ? "#1A1A1A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-            {allConfirmed && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
+          <div onClick={() => toggleAllConfirmed(!allConfirmed)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: allConfirmed ? "var(--accent)" : "var(--border)", background: allConfirmed ? "var(--accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+            {allConfirmed && <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2"/></svg>}
           </div>
           <div style={{ fontSize: 13, color: "#555" }}>Mark all as Confirmed</div>
         </div>
@@ -2442,8 +2442,8 @@ function BulkImportTab({ members, loading, onBulkImport, selectStyle }) {
           <div key={r.member_id} style={{ padding: "14px 16px", borderBottom: "1px solid #F9F8F5", opacity: r.skip ? 0.4 : 1, transition: "opacity 0.15s" }}>
             {/* Row header */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: r.skip ? 0 : 12 }}>
-              <div onClick={() => setRow(idx, "skip", !r.skip)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: r.skip ? "#CCC" : "#1A1A1A", background: r.skip ? "transparent" : "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-                {!r.skip && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
+              <div onClick={() => setRow(idx, "skip", !r.skip)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid", borderColor: r.skip ? "var(--border)" : "var(--accent)", background: r.skip ? "transparent" : "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                {!r.skip && <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2"/></svg>}
               </div>
               <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#F0EFEA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#555", flexShrink: 0 }}>
                 {r.name.charAt(0)}
@@ -2477,8 +2477,7 @@ function BulkImportTab({ members, loading, onBulkImport, selectStyle }) {
         ))}
       </div>
 
-      <button className="btn" onClick={handleSubmit} disabled={submitting || loading || toImport === 0}
-        style={{ width: "100%", background: "#1A1A1A", color: "#F7F6F2", border: "none", borderRadius: 14, padding: "14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+      <button className="modal-btn-primary" onClick={handleSubmit} disabled={submitting || loading || toImport === 0} style={{ width: "100%", borderRadius: 14, padding: "14px", fontSize: 14 }}>
         {submitting ? <><Spinner /> Importing…</> : `Import ${toImport} contributions for ${month}`}
       </button>
     </div>

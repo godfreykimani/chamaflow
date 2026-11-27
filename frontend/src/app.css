@@ -246,8 +246,8 @@ button              { cursor: pointer; font-family: inherit; }
 .btn         { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--r2); border: none; font-weight: 500; font-size: 13px; cursor: pointer; padding: 8px 16px; min-height: 44px; transition: filter 0.12s, transform 0.1s; white-space: nowrap; }
 .btn:hover   { filter: brightness(1.05); transform: translateY(-1px); }
 .btn:active  { transform: scale(0.97); }
-.btn-p       { background: var(--fg); color: #fff; }
-.btn-p:hover { filter: brightness(1.15); }
+.btn-p       { background: var(--accent); color: #fff; }
+.btn-p:hover { filter: brightness(1.08); }
 .btn-o       { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
 .btn-o:hover { background: var(--sf2); }
 .btn-a       { background: var(--accent); color: #fff; }
