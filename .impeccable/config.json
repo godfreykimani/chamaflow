@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-11-27T22:10:28.473Z",
+        "reason": "Intentional system-wide body font paired with DM Serif Display for headings; deliberate typographic system for a financial/savings app"
+      }
+    ]
+  }
+}

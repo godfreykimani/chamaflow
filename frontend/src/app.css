@@ -479,8 +479,8 @@ button              { cursor: pointer; font-family: inherit; }
 
 /* ── API offline banner ─────────────────────────────────────────────────────── */
 .api-offline {
-  margin: 20px; background: #fff3e0; border-radius: 14px; padding: 16px;
-  border-left: 4px solid #ff9800;
+  margin: 20px; background: #fff8f0; border-radius: 14px; padding: 16px;
+  border: 1.5px solid #ff9800;
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
