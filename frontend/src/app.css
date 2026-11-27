@@ -96,7 +96,7 @@
 /* Modal primary button */
 .modal-btn-primary {
   flex: 1; padding: 13px 18px; border-radius: 13px; border: none;
-  background: var(--fg); color: #f8f6f2;
+  background: var(--accent); color: #fff;
   font-size: 13px; font-weight: 600; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   transition: opacity .15s, background .15s;
