@@ -20,3 +20,5 @@ frontend/dist/
 # Editor
 .DS_Store
 *.log
+.vercel
+.env*

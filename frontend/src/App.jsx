@@ -545,6 +545,29 @@ function ChamaFlow({ onLogout }) {
                 </div>
               );
             })}
+
+            {/* Members payment status */}
+            {members.filter(m => m.active).length > 0 && (
+              <div className="nav-sec">
+                <div className="nav-sec-lbl">Members</div>
+                {members.filter(m => m.active).slice(0, 8).map((m, i) => {
+                  const initials = m.name?.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+                  const avColors = ["#2563eb","#16a34a","#9333ea","#dc2626","#0891b2","#d97706","#db2777","#0d9488"];
+                  return (
+                    <div key={m.id} className="nav-member-row" onClick={() => setPage("members")} style={{ cursor: "pointer" }}>
+                      <div className="nav-member-av" style={{ background: avColors[i % avColors.length] }}>{initials}</div>
+                      <span className="nav-member-name">{m.name.split(" ")[0]}</span>
+                      <span className="nav-member-badge" style={{ background: "var(--sf3)", color: "var(--fg3)", fontSize: 9 }}>{m.shares}sh</span>
+                    </div>
+                  );
+                })}
+                {members.filter(m => m.active).length > 8 && (
+                  <button className="nl" onClick={() => setPage("members")} style={{ fontSize: 11, color: "var(--accent)", paddingLeft: 10 }}>
+                    +{members.filter(m => m.active).length - 8} more members
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="nav-foot">
@@ -710,15 +733,25 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
         <div className="topbar">
           <input className="search-box" placeholder="Search members, contributions…" readOnly />
           <div className="tbr">
-            <div className="icon-btn">🔔<span className="dot"/></div>
-            <button className="btn btn-o btn-sm" onClick={() => setPage("record")}>Import Data</button>
-            <button className="btn btn-p btn-sm" onClick={() => setPage("record")}>+ Add Contribution</button>
+            <div className="icon-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {pendingCount > 0 && <span className="dot"/>}
+            </div>
+            {isAdmin && <button className="btn btn-o btn-sm" onClick={() => setPage("record")}>Import Data</button>}
+            {isAdmin && <button className="btn btn-p btn-sm" onClick={() => setPage("record")}>+ Add Contribution</button>}
           </div>
         </div>
       )}
 
-      <div className="page-h">Dashboard</div>
-      <div className="page-sub">{CURRENT_MONTH} · Kaabazim Self Help Group</div>
+      <div className="page-head-row">
+        <div>
+          <div className="page-h">Dashboard</div>
+          <div className="page-sub">{CURRENT_MONTH} · Kaabazim Self Help Group</div>
+        </div>
+        {!isDesktop && isAdmin && (
+          <button className="btn btn-p btn-sm" onClick={() => setPage("record")}>+ Record</button>
+        )}
+      </div>
 
       {/* Auto-fine alert for admins */}
       {isAdmin && unpaid && unpaid.unpaid.filter(m => !m.already_fined).length > 0 && (
@@ -784,16 +817,40 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
       {/* Metric tiles */}
       <div className="metrics">
         {[
-          { lbl: "Total Savings", val: fmt(totalSavings), ch: "All-time", ico: "💰" },
-          { lbl: "Monthly Target", val: fmt(monthlyExpected), ch: CURRENT_MONTH, ico: "📅" },
-          { lbl: "Active Members", val: activeMembers.length, ch: `${paidThisMonth} paid this month`, ico: "👥" },
-          { lbl: "Pending", val: pendingCount, ch: "need to pay", ico: "⏳" },
+          {
+            lbl: "Total Savings", val: fmt(totalSavings), ch: "All contributions", ico: (
+              <div className="m-ico-wrap" style={{ background: "var(--acc-l)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+              </div>
+            ),
+          },
+          {
+            lbl: "Monthly Target", val: fmt(monthlyExpected), ch: CURRENT_MONTH, ico: (
+              <div className="m-ico-wrap" style={{ background: "var(--amb-l)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </div>
+            ),
+          },
+          {
+            lbl: "Active Members", val: activeMembers.length, ch: `${paidThisMonth} paid this month`, ico: (
+              <div className="m-ico-wrap" style={{ background: "var(--grn-l)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+            ),
+          },
+          {
+            lbl: "Pending", val: pendingCount, ch: "need to pay", ico: (
+              <div className="m-ico-wrap" style={{ background: pendingCount > 0 ? "var(--red-l)" : "var(--grn-l)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={pendingCount > 0 ? "var(--red)" : "var(--green)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+            ),
+          },
         ].map(m => (
           <div key={m.lbl} className="metric">
-            <div className="m-ico">{m.ico}</div>
+            {m.ico}
             <div className="m-lbl">{m.lbl}</div>
             <div className="m-val">{m.val}</div>
-            <div className="m-ch">{m.ch}</div>
+            <div className={`m-ch${m.lbl === "Pending" && pendingCount > 0 ? " dn" : ""}`}>{m.ch}</div>
           </div>
         ))}
       </div>
@@ -862,7 +919,7 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
         })}
       </div>
 
-      {/* Lower: recent contributions + quick actions */}
+      {/* Lower: recent contributions + workload */}
       <div className="lower">
         <div className="card">
           <div className="card-hd">
@@ -900,23 +957,53 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
           )}
         </div>
 
-        <div className="card tasks-panel">
-          <div className="card-hd">
-            <span className="card-title">Quick Actions</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Member workload */}
+          <div className="card">
+            <div className="card-hd" style={{ marginBottom: 14 }}>
+              <span className="card-title">Member Shares</span>
+              <button className="sec-link" onClick={() => setPage("members")}>All →</button>
+            </div>
+            <div className="workload-list">
+              {activeMembers.slice(0, 8).map((m, i) => {
+                const initials = m.name?.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+                const avColors = ["#2563eb","#16a34a","#9333ea","#dc2626","#0891b2","#d97706","#db2777","#0d9488","#4f46e5","#65a30d","#c026d3","#b45309"];
+                const maxShares = Math.max(...activeMembers.map(x => x.shares || 1));
+                const pct = ((m.shares || 1) / maxShares) * 100;
+                const barColor = i === 0 ? "var(--accent)" : i < 3 ? "var(--green)" : "var(--fg3)";
+                return (
+                  <div key={m.id} className="workload-row">
+                    <div className="workload-av" style={{ background: avColors[i % avColors.length] }}>{initials}</div>
+                    <span className="workload-name">{m.name.split(" ")[0]}</span>
+                    <div className="workload-bar-bg">
+                      <div className="workload-bar-fill" style={{ width: `${pct}%`, background: barColor }} />
+                    </div>
+                    <span className="workload-count">{m.shares} share{m.shares > 1 ? "s" : ""}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="task-list">
-            {[
-              { lbl: "Record this month's contributions", p: "ph", onClick: () => setPage("record") },
-              { lbl: "Review pending payments", p: "pm", onClick: () => setPage("contributions") },
-              { lbl: "Schedule next meeting", p: "pn", onClick: () => setPage("meetings") },
-              { lbl: "View annual report", p: "pn", onClick: () => setPage("report") },
-            ].map((t, i) => (
-              <div key={i} className="task" style={{ cursor: "pointer" }} onClick={t.onClick}>
-                <div className="tck"/>
-                <span className="tsk-lbl">{t.lbl}</span>
-                <span className={`tsk-p ${t.p}`}>{t.p === "ph" ? "High" : t.p === "pm" ? "Med" : "Low"}</span>
-              </div>
-            ))}
+
+          {/* Quick Actions */}
+          <div className="card tasks-panel">
+            <div className="card-hd" style={{ marginBottom: 12 }}>
+              <span className="card-title">Quick Actions</span>
+            </div>
+            <div className="task-list">
+              {[
+                { lbl: "Record this month's contributions", p: "ph", onClick: () => setPage("record") },
+                { lbl: "Review pending payments", p: "pm", onClick: () => setPage("contributions") },
+                { lbl: "Schedule next meeting", p: "pn", onClick: () => setPage("meetings") },
+                { lbl: "View annual report", p: "pn", onClick: () => setPage("report") },
+              ].map((t, i) => (
+                <div key={i} className="task" style={{ cursor: "pointer" }} onClick={t.onClick}>
+                  <div className="tck"/>
+                  <span className="tsk-lbl">{t.lbl}</span>
+                  <span className={`tsk-p ${t.p}`}>{t.p === "ph" ? "High" : t.p === "pm" ? "Med" : "Low"}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
