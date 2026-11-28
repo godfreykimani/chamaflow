@@ -518,36 +518,85 @@ function ChamaFlow({ onLogout }) {
   return (
     <div className="app-shell">
 
-      {/* Top pill nav — desktop only */}
+      {/* Desktop sidebar */}
       {viewMode === "desktop" && (
-        <header className="top-nav">
-          {/* Logo */}
-          <div className="logomark">KA</div>
-
-          {/* Pill tab strip */}
-          <div className="pill-bar">
-            {visibleNav.map(item => (
-              <button
-                key={item.id}
-                className={`pill-tab${page === item.id ? " active" : ""}`}
-                onClick={() => setPage(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
+        <nav className="nav">
+          <div className="nav-logo">
+            <div className="logomark">KA</div>
+            <div>
+              <div className="brand-name">Kaabazim</div>
+              <div className="brand-sub">Self Help Group</div>
+            </div>
           </div>
 
-          {/* Right side: icons + user */}
-          <div className="nav-right">
-            {/* API status dot */}
-            {apiOnline !== null && (
-              <div className="nav-icon-btn" title={apiOnline ? "Connected" : "API offline"} style={{ cursor: "default" }}>
-                <div className="api-dot-ind" style={{ width: 8, height: 8, background: apiOnline ? "var(--green)" : "var(--red)", borderRadius: "50%" }} />
+          <div className="nav-body">
+            {navSections.map(sec => {
+              const items = visibleNav.filter(n => n.section === sec);
+              if (items.length === 0) return null;
+              return (
+                <div key={sec} className="nav-sec">
+                  <div className="nav-sec-lbl">{sec}</div>
+                  {items.map(item => {
+                    const active = page === item.id;
+                    return (
+                      <button key={item.id} className={`nl${active ? " on" : ""}`} onClick={() => setPage(item.id)}>
+                        <Icon name={item.icon} size={17} color={active ? "var(--accent)" : "var(--fg3)"} className="nl-icon" />
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {/* Members quick list */}
+            {members.filter(m => m.active).length > 0 && (
+              <div className="nav-sec">
+                <div className="nav-sec-lbl">Members</div>
+                {members.filter(m => m.active).slice(0, 8).map((m, i) => {
+                  const initials = m.name?.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+                  const avColors = ["#2563eb","#16a34a","#9333ea","#dc2626","#0891b2","#d97706","#db2777","#0d9488"];
+                  return (
+                    <div key={m.id} className="nav-member-row" onClick={() => setPage("members")} style={{ cursor: "pointer" }}>
+                      <div className="nav-member-av" style={{ background: avColors[i % avColors.length] }}>{initials}</div>
+                      <span className="nav-member-name">{m.name.split(" ")[0]}</span>
+                      <span className="nav-member-badge" style={{ background: "var(--sf3)", color: "var(--fg3)", fontSize: 9 }}>{m.shares}sh</span>
+                    </div>
+                  );
+                })}
+                {members.filter(m => m.active).length > 8 && (
+                  <button className="nl" onClick={() => setPage("members")} style={{ fontSize: 11, color: "var(--accent)", paddingLeft: 10 }}>
+                    +{members.filter(m => m.active).length - 8} more members
+                  </button>
+                )}
               </div>
             )}
+          </div>
 
+          <div className="nav-foot">
+            <div className="cycle-bar">
+              <div className="cycle-lbl">{now.getFullYear()} · Month {now.getMonth() + 1} of 12</div>
+              <div className="cycle-track"><div className="cycle-fill" style={{ width: `${cycleProgress}%` }} /></div>
+              <div className="cycle-pct">{cycleProgress}% through the year</div>
+            </div>
+            {apiOnline !== null && (
+              <div className="api-dot">
+                <div className="api-dot-ind" style={{ background: apiOnline ? "var(--green)" : "var(--red)" }} />
+                <span style={{ fontSize: 11, color: apiOnline ? "var(--green)" : "var(--red)" }}>{apiOnline ? "Connected" : "API offline"}</span>
+              </div>
+            )}
+          </div>
+        </nav>
+      )}
+
+      {/* Main area */}
+      <div className="main-area">
+
+        {/* Global topbar — desktop: bell, logout, profile */}
+        {viewMode === "desktop" && (
+          <div className="global-topbar">
             {/* Bell */}
-            <button className="nav-icon-btn" title="Notifications" onClick={() => setPage("contributions")}>
+            <button className="nav-icon-btn" title="Pending contributions" onClick={() => setPage("contributions")}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
               {pendingCount > 0 && <span className="dot" />}
             </button>
@@ -568,11 +617,8 @@ function ChamaFlow({ onLogout }) {
               </div>
             )}
           </div>
-        </header>
-      )}
+        )}
 
-      {/* Main area */}
-      <div className="main-area">
         {/* Mobile header */}
         {viewMode === "mobile" && (
           <div className="mobile-header">
