@@ -512,92 +512,63 @@ function ChamaFlow({ onLogout }) {
   const cycleProgress = Math.round(((now.getMonth() + 1) / 12) * 100);
   const activeMemberCount = members.filter(m => m.active).length;
 
+  // Pending count for bell badge
+  const pendingCount = contributions.filter(c => c.status === "Pending").length;
+
   return (
     <div className="app-shell">
 
-      {/* Desktop sidebar */}
+      {/* Top pill nav — desktop only */}
       {viewMode === "desktop" && (
-        <nav className="nav">
-          <div className="nav-logo">
-            <div className="logomark">KA</div>
-            <div>
-              <div className="brand-name">Kaabazim</div>
-              <div className="brand-sub">Self Help Group</div>
-            </div>
+        <header className="top-nav">
+          {/* Logo */}
+          <div className="logomark">KA</div>
+
+          {/* Pill tab strip */}
+          <div className="pill-bar">
+            {visibleNav.map(item => (
+              <button
+                key={item.id}
+                className={`pill-tab${page === item.id ? " active" : ""}`}
+                onClick={() => setPage(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
 
-          <div className="nav-body">
-            {navSections.map(sec => {
-              const items = visibleNav.filter(n => n.section === sec);
-              if (items.length === 0) return null;
-              return (
-                <div key={sec} className="nav-sec">
-                  <div className="nav-sec-lbl">{sec}</div>
-                  {items.map(item => {
-                    const active = page === item.id;
-                    return (
-                      <button key={item.id} className={`nl${active ? " on" : ""}`} onClick={() => setPage(item.id)}>
-                        <Icon name={item.icon} size={17} color={active ? "var(--accent)" : "var(--fg3)"} className="nl-icon" />
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
-
-            {/* Members payment status */}
-            {members.filter(m => m.active).length > 0 && (
-              <div className="nav-sec">
-                <div className="nav-sec-lbl">Members</div>
-                {members.filter(m => m.active).slice(0, 8).map((m, i) => {
-                  const initials = m.name?.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
-                  const avColors = ["#2563eb","#16a34a","#9333ea","#dc2626","#0891b2","#d97706","#db2777","#0d9488"];
-                  return (
-                    <div key={m.id} className="nav-member-row" onClick={() => setPage("members")} style={{ cursor: "pointer" }}>
-                      <div className="nav-member-av" style={{ background: avColors[i % avColors.length] }}>{initials}</div>
-                      <span className="nav-member-name">{m.name.split(" ")[0]}</span>
-                      <span className="nav-member-badge" style={{ background: "var(--sf3)", color: "var(--fg3)", fontSize: 9 }}>{m.shares}sh</span>
-                    </div>
-                  );
-                })}
-                {members.filter(m => m.active).length > 8 && (
-                  <button className="nl" onClick={() => setPage("members")} style={{ fontSize: 11, color: "var(--accent)", paddingLeft: 10 }}>
-                    +{members.filter(m => m.active).length - 8} more members
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="nav-foot">
-            {/* Cycle progress */}
-            <div className="cycle-bar">
-              <div className="cycle-lbl">{now.getFullYear()} · Month {now.getMonth() + 1} of 12</div>
-              <div className="cycle-track"><div className="cycle-fill" style={{ width: `${cycleProgress}%` }} /></div>
-              <div className="cycle-pct">{cycleProgress}% through the year</div>
-            </div>
-            {/* API status */}
+          {/* Right side: icons + user */}
+          <div className="nav-right">
+            {/* API status dot */}
             {apiOnline !== null && (
-              <div className="api-dot">
-                <div className="api-dot-ind" style={{ background: apiOnline ? "var(--green)" : "var(--red)" }} />
-                <span style={{ fontSize: 11, color: apiOnline ? "var(--green)" : "var(--red)" }}>{apiOnline ? "Connected" : "API offline"}</span>
-                <button onClick={onLogout} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--fg3)", fontSize: 11, cursor: "pointer", padding: 0 }}>
-                  <Icon name="logout" size={13} color="var(--fg3)" />
-                </button>
+              <div className="nav-icon-btn" title={apiOnline ? "Connected" : "API offline"} style={{ cursor: "default" }}>
+                <div className="api-dot-ind" style={{ width: 8, height: 8, background: apiOnline ? "var(--green)" : "var(--red)", borderRadius: "50%" }} />
               </div>
             )}
+
+            {/* Bell */}
+            <button className="nav-icon-btn" title="Notifications" onClick={() => setPage("contributions")}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {pendingCount > 0 && <span className="dot" />}
+            </button>
+
+            {/* Logout */}
+            <button className="nav-icon-btn" title="Sign out" onClick={onLogout}>
+              <Icon name="logout" size={16} color="var(--fg2)" />
+            </button>
+
+            {/* User pill */}
             {currentUser && (
-              <div className="nav-user">
+              <div className="nav-user-pill">
                 <div className="uav">{currentUser.name?.slice(0,2).toUpperCase()}</div>
-                <div style={{ overflow: "hidden" }}>
-                  <div className="uname">{currentUser.name}</div>
+                <div>
+                  <div className="uname">{currentUser.name?.split(" ")[0]}</div>
                   <div className="urole">{role}</div>
                 </div>
               </div>
             )}
           </div>
-        </nav>
+        </header>
       )}
 
       {/* Main area */}
@@ -728,21 +699,6 @@ function DashboardPage({ dashboard, loading, member, role, setPage, viewMode, on
 
   return (
     <div style={{ padding: pad }} className="fade-up">
-      {/* Topbar */}
-      {isDesktop && (
-        <div className="topbar">
-          <input className="search-box" placeholder="Search members, contributions…" readOnly />
-          <div className="tbr">
-            <div className="icon-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              {pendingCount > 0 && <span className="dot"/>}
-            </div>
-            {isAdmin && <button className="btn btn-o btn-sm" onClick={() => setPage("record")}>Import Data</button>}
-            {isAdmin && <button className="btn btn-p btn-sm" onClick={() => setPage("record")}>+ Add Contribution</button>}
-          </div>
-        </div>
-      )}
-
       <div className="page-head-row">
         <div>
           <div className="page-h">Dashboard</div>
